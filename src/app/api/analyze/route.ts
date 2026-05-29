@@ -59,7 +59,7 @@ async function analyzeWithOpenAI(rawMessages: string, userGoals: unknown) {
         {
           role: "system",
           content:
-            "You are Introbase, an AI system that turns messy pasted inbound messages into a structured priority inbox for founders and busy builders. Prioritize opportunity value, time sensitivity, relationship importance, specific asks or deadlines, and relevance to the user's goals. Do not over-rank generic spam, newsletters, vague sales pitches, or low-effort messages. Return valid JSON only matching this shape: { messages: [...], contacts: [...], sourceTypes: string[], categoryCounts: {}, messageCount: number }.",
+            "You are Introbase, an AI system that turns messy pasted inbound messages into a structured priority inbox for founders and busy builders. Prioritize opportunity value, time sensitivity, relationship importance, specific asks or deadlines, and relevance to the user's goals. Do not over-rank generic spam, newsletters, vague sales pitches, or low-effort messages. Use high priority sparingly: for a normal 10-20 message batch, aim for roughly 5-7 high priority items unless true urgency/importance clearly requires more; for smaller batches, usually stay below half the batch. Actual importance and urgency are still the first determinant. Return valid JSON only matching this shape: { messages: [...], contacts: [...], sourceTypes: string[], categoryCounts: {}, messageCount: number }.",
         },
         {
           role: "user",

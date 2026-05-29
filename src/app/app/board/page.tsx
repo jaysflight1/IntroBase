@@ -66,17 +66,10 @@ export default function BoardPage() {
     readJson<AnalysisResult | null>(STORAGE_KEYS.currentAnalysis, null),
   );
   const [selected, setSelected] = useState<AnalyzedMessage | null>(null);
-  const [openedCount, setOpenedCount] = useState(0);
 
   useEffect(() => {
     void logEvent("viewed_board");
   }, []);
-
-  useEffect(() => {
-    if (openedCount >= 2) {
-      window.dispatchEvent(new Event("introbase-feedback-ready"));
-    }
-  }, [openedCount]);
 
   const messages = useMemo(() => analysis?.messages ?? [], [analysis]);
   const grouped = useMemo(
@@ -116,12 +109,10 @@ export default function BoardPage() {
       category: message.category,
       priority: message.priority,
     });
-    window.dispatchEvent(new Event("introbase-feedback-ready"));
   }
 
   function openMessage(message: AnalyzedMessage) {
     setSelected(message);
-    setOpenedCount((count) => count + 1);
     void logEvent("opened_message", {
       message_id: message.id,
       category: message.category,

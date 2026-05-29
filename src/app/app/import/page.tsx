@@ -9,7 +9,7 @@ import { defaultGoalOptions, sampleInbox } from "@/data/sampleInbox";
 import { getAnonymousUserId, getSessionId } from "@/lib/anonymousUser";
 import { logEvent } from "@/lib/logEvent";
 import { STORAGE_KEYS } from "@/lib/storageKeys";
-import { writeJson } from "@/lib/browserStorage";
+import { readJson, writeJson } from "@/lib/browserStorage";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -30,7 +30,9 @@ function ImportView() {
   const searchParams = useSearchParams();
   const shouldLoadSample = searchParams.get("sample") === "1";
   const [rawMessages, setRawMessages] = useState(() =>
-    shouldLoadSample ? sampleInbox : "",
+    shouldLoadSample
+      ? sampleInbox
+      : readJson<string>(STORAGE_KEYS.importDraft, ""),
   );
   const [prioritize, setPrioritize] = useState<string[]>([
     "Investors",
@@ -56,6 +58,10 @@ function ImportView() {
     }
   }, [shouldLoadSample]);
 
+  useEffect(() => {
+    writeJson(STORAGE_KEYS.importDraft, rawMessages);
+  }, [rawMessages]);
+
   function toggleGoal(goal: string) {
     setPrioritize((current) =>
       current.includes(goal)
@@ -66,6 +72,7 @@ function ImportView() {
 
   function loadSample() {
     setRawMessages(sampleInbox);
+    writeJson(STORAGE_KEYS.importDraft, sampleInbox);
     void logEvent("used_sample_inbox", { source: "button" });
     toast.success("Sample inbox loaded");
   }

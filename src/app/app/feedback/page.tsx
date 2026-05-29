@@ -1,7 +1,5 @@
-import { FeedbackForm } from "@/components/FeedbackForm";
 import {
   Card,
-  CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
@@ -11,14 +9,11 @@ export default function FeedbackPage() {
   return (
     <Card className="max-w-3xl">
       <CardHeader>
-        <CardTitle>Feedback</CardTitle>
+        <CardTitle>Feedback is disabled</CardTitle>
         <CardDescription>
-          Tell us whether Introbase ranked your messages usefully.
+          The MVP currently does not show a feedback form to users.
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        <FeedbackForm />
-      </CardContent>
     </Card>
   );
 }

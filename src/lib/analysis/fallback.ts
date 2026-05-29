@@ -104,7 +104,7 @@ function classify(text: string): {
     };
   }
 
-  if (/mom|friend|aunt|call/.test(lower)) {
+  if (/friend|family|personal|call/.test(lower)) {
     tags.push("personal");
     return {
       category: "personal",
@@ -141,12 +141,46 @@ function nextBusinessDate(days = 3): string {
   return date.toISOString().slice(0, 10);
 }
 
+function highPriorityBudget(messageCount: number): number {
+  if (messageCount <= 6) return Math.min(3, messageCount);
+  if (messageCount <= 12) return 5;
+  if (messageCount <= 20) return 7;
+  return Math.ceil(messageCount * 0.35);
+}
+
+function applyPriorityBudget(messages: AnalyzedMessage[]): AnalyzedMessage[] {
+  const budget = highPriorityBudget(messages.length);
+  let highCount = 0;
+
+  return [...messages]
+    .sort((a, b) => b.priorityScore - a.priorityScore)
+    .map((message) => {
+      if (message.priority !== "high") return message;
+      highCount += 1;
+
+      if (highCount <= budget || message.priorityScore >= 95) {
+        return message;
+      }
+
+      return {
+        ...message,
+        priority: "medium" as const,
+        urgency:
+          message.urgency === "reply_now" ? "reply_this_week" : message.urgency,
+        suggestedAction: "Reply this week after the highest-priority items.",
+        whyItMatters:
+          "This is relevant, but it ranks below the most urgent and valuable messages in this batch.",
+      };
+    })
+    .sort((a, b) => Number(a.id.split("_")[1]) - Number(b.id.split("_")[1]));
+}
+
 export function createFallbackAnalysis(
   rawMessages: string,
   userGoals: UserGoals,
 ): AnalysisResult {
   const blocks = splitMessages(rawMessages);
-  const messages: AnalyzedMessage[] = blocks.map((block, index) => {
+  const initialMessages: AnalyzedMessage[] = blocks.map((block, index) => {
     const source = field(block, "Source") || "Other";
     const from = field(block, "From") || `Sender ${index + 1}`;
     const [senderName, senderOrganization] = from.split(/\s+at\s+/i);
@@ -187,6 +221,7 @@ export function createFallbackAnalysis(
       status: "new",
     };
   });
+  const messages = applyPriorityBudget(initialMessages);
 
   const contacts: ExtractedContact[] = messages
     .filter((message) => message.category !== "spam" && message.category !== "sales")
