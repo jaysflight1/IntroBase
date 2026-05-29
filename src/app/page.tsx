@@ -1,64 +1,103 @@
-import Image from "next/image";
+import { CheckCircle2 } from "lucide-react";
+
+import { LandingActions } from "@/components/LandingActions";
+import { VisitLogger } from "@/components/VisitLogger";
 
 export default function Home() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className="min-h-screen bg-white text-zinc-950">
+      <VisitLogger eventName="visited_landing" />
+      <header className="border-b">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-5 sm:px-6">
+          <div className="text-lg font-semibold tracking-tight">Introbase</div>
+          <LandingActions />
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+      </header>
+
+      <main>
+        <section className="mx-auto grid max-w-7xl gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[1fr_440px] lg:py-20">
+          <div className="max-w-3xl">
+            <p className="text-sm font-medium text-blue-700">
+              No inbox connection required
+            </p>
+            <h1 className="mt-4 text-5xl font-semibold leading-tight tracking-tight sm:text-6xl">
+              AI command center for your inbound.
+            </h1>
+            <p className="mt-6 max-w-2xl text-lg leading-8 text-zinc-600">
+              Introbase prioritizes your messages, contacts, and follow-ups so
+              you know exactly who to reply to first.
+            </p>
+            <div className="mt-8">
+              <LandingActions />
+            </div>
+          </div>
+
+          <div className="rounded-lg border bg-zinc-50 p-4 shadow-sm">
+            <div className="space-y-3">
+              {[
+                ["Reply now", "Accelerator pilot request", "High"],
+                ["This week", "Investor wants a deck", "High"],
+                ["Follow up later", "Recruiter opportunity", "Medium"],
+                ["Low priority", "Generic outbound pitch", "Low"],
+              ].map(([lane, title, priority]) => (
+                <div key={title} className="rounded-md border bg-white p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs font-medium uppercase text-zinc-500">
+                      {lane}
+                    </p>
+                    <span className="rounded-full bg-zinc-100 px-2 py-1 text-xs">
+                      {priority}
+                    </span>
+                  </div>
+                  <p className="mt-2 font-medium">{title}</p>
+                  <p className="mt-1 text-sm text-zinc-600">
+                    Suggested action: reply with a short next-step ask.
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="border-y bg-zinc-50">
+          <div className="mx-auto grid max-w-7xl gap-8 px-4 py-14 sm:px-6 lg:grid-cols-4">
+            {[
+              ["Paste messy inbound", "Emails, DMs, Slack, Discord, texts, and connection requests."],
+              ["Introbase ranks each message", "See opportunity value, urgency, relationship importance, and deadlines."],
+              ["See who to reply to first", "A simple priority board replaces scattered context switching."],
+              ["Draft replies and track follow-ups", "Copy concise replies and keep lightweight next steps visible."],
+            ].map(([title, description]) => (
+              <div key={title}>
+                <CheckCircle2 className="size-5 text-blue-700" />
+                <h2 className="mt-3 font-semibold">{title}</h2>
+                <p className="mt-2 text-sm leading-6 text-zinc-600">
+                  {description}
+                </p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="mx-auto grid max-w-7xl gap-8 px-4 py-14 sm:px-6 lg:grid-cols-2">
+          <div>
+            <h2 className="text-2xl font-semibold tracking-tight">
+              Your important messages are scattered.
+            </h2>
+            <p className="mt-4 leading-7 text-zinc-600">
+              Founders and builders miss opportunities because inbound lives
+              across email, LinkedIn, Slack, Discord, texts, and DMs. Introbase
+              turns the chaos into a ranked queue of what matters.
+            </p>
+          </div>
+          <div className="rounded-lg border p-5">
+            <h2 className="font-semibold">Privacy-first beta</h2>
+            <p className="mt-3 text-sm leading-6 text-zinc-600">
+              For the beta, you paste messages manually. Introbase does not
+              store your raw pasted messages server-side by default; your
+              analysis is saved locally in your browser.
+            </p>
+          </div>
+        </section>
       </main>
     </div>
   );
