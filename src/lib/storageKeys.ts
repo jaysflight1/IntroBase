@@ -1,0 +1,8 @@
+export const STORAGE_KEYS = {
+  anonymousUserId: "introbase_anonymous_user_id",
+  sessionId: "introbase_session_id",
+  currentAnalysis: "introbase_current_analysis",
+  savedContacts: "introbase_saved_contacts",
+  followups: "introbase_followups",
+  hasSeenFeedbackModal: "introbase_has_seen_feedback_modal",
+} as const;
