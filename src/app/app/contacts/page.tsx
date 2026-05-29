@@ -1,0 +1,185 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { readJson, writeJson } from "@/lib/browserStorage";
+import { getFollowUpStatus } from "@/lib/followups";
+import { logEvent } from "@/lib/logEvent";
+import { makeClientId } from "@/lib/normalize";
+import { STORAGE_KEYS } from "@/lib/storageKeys";
+import type { ExtractedContact, FollowUp } from "@/types";
+
+export default function ContactsPage() {
+  const [contacts, setContacts] = useState<ExtractedContact[]>(() =>
+    readJson<ExtractedContact[]>(STORAGE_KEYS.savedContacts, []),
+  );
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [note, setNote] = useState("");
+
+  const sortedContacts = useMemo(
+    () =>
+      [...contacts].sort((a, b) => {
+        const weights = { high: 3, medium: 2, low: 1 };
+        return weights[b.priority] - weights[a.priority];
+      }),
+    [contacts],
+  );
+
+  function persist(nextContacts: ExtractedContact[]) {
+    setContacts(nextContacts);
+    writeJson(STORAGE_KEYS.savedContacts, nextContacts);
+  }
+
+  function markImportant(contact: ExtractedContact) {
+    persist(
+      contacts.map((item) =>
+        item.id === contact.id ? { ...item, priority: "high" } : item,
+      ),
+    );
+    void logEvent("saved_contact", { contact_id: contact.id, priority: "high" });
+  }
+
+  function saveNote(contact: ExtractedContact) {
+    persist(
+      contacts.map((item) =>
+        item.id === contact.id ? { ...item, note } : item,
+      ),
+    );
+    setEditingId(null);
+    setNote("");
+    toast.success("Note saved");
+  }
+
+  function createFollowUp(contact: ExtractedContact) {
+    const followups = readJson<FollowUp[]>(STORAGE_KEYS.followups, []);
+    const date = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .slice(0, 10);
+    const followUp: FollowUp = {
+      id: makeClientId("followup"),
+      contactId: contact.id,
+      person: contact.name,
+      followUpDate: date,
+      reason: contact.nextStep,
+      suggestedMessage: `Hi ${contact.name.split(" ")[0]}, following up on this. ${contact.nextStep}`,
+      status: getFollowUpStatus(date),
+    };
+
+    writeJson(STORAGE_KEYS.followups, [...followups, followUp]);
+    void logEvent("created_followup", {
+      contact_id: contact.id,
+      priority: contact.priority,
+    });
+    toast.success("Follow-up created");
+  }
+
+  if (contacts.length === 0) {
+    return (
+      <div className="rounded-lg border bg-white p-8">
+        <h1 className="text-2xl font-semibold">Contacts</h1>
+        <p className="mt-2 text-muted-foreground">
+          Saved contacts and extracted people will appear here after analysis.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h1 className="text-3xl font-semibold tracking-tight">Contacts</h1>
+        <p className="mt-2 text-muted-foreground">
+          Lightweight relationship context extracted from your analyzed inbound.
+        </p>
+      </div>
+      <div className="overflow-x-auto rounded-lg border bg-white">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead>Organization</TableHead>
+              <TableHead>Tags</TableHead>
+              <TableHead>Priority</TableHead>
+              <TableHead>Next step</TableHead>
+              <TableHead>Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {sortedContacts.map((contact) => (
+              <TableRow key={contact.id}>
+                <TableCell>
+                  <div className="font-medium">{contact.name}</div>
+                  <div className="text-sm text-muted-foreground">
+                    {contact.source}
+                  </div>
+                </TableCell>
+                <TableCell>{contact.organization || "-"}</TableCell>
+                <TableCell>
+                  <div className="flex flex-wrap gap-1">
+                    {contact.tags.map((tag) => (
+                      <Badge key={tag} variant="outline">
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
+                </TableCell>
+                <TableCell>{contact.priority}</TableCell>
+                <TableCell className="min-w-64">
+                  <div>{contact.nextStep}</div>
+                  {editingId === contact.id ? (
+                    <div className="mt-2 flex gap-2">
+                      <Input
+                        value={note}
+                        onChange={(event) => setNote(event.target.value)}
+                        placeholder="Add note"
+                      />
+                      <Button size="sm" onClick={() => saveNote(contact)}>
+                        Save
+                      </Button>
+                    </div>
+                  ) : contact.note ? (
+                    <div className="mt-1 text-sm text-muted-foreground">
+                      {contact.note}
+                    </div>
+                  ) : null}
+                </TableCell>
+                <TableCell>
+                  <div className="flex flex-wrap gap-2">
+                    <Button size="sm" variant="outline" onClick={() => markImportant(contact)}>
+                      Important
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setEditingId(contact.id);
+                        setNote(contact.note ?? "");
+                      }}
+                    >
+                      Note
+                    </Button>
+                    <Button size="sm" onClick={() => createFollowUp(contact)}>
+                      Follow up
+                    </Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </div>
+  );
+}

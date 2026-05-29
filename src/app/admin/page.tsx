@@ -1,0 +1,179 @@
+"use client";
+
+import { useState } from "react";
+import { Loader2 } from "lucide-react";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+
+interface Metrics {
+  uniqueActiveUsers: number;
+  uniqueAnalyzedUsers: number;
+  totalBatches: number;
+  totalMessages: number;
+  repeatBatchUsers: number;
+  laterDayReturningUsers: number;
+  repliesCopied: number;
+  contactsSaved: number;
+  followupsCreated: number;
+  messageCardsOpened: number;
+  priorityChanges: number;
+  feedbackResponses: number;
+  emailsCollected: number;
+  usefulRatings: Record<string, number>;
+  wouldUseAgain: Record<string, number>;
+  willingnessToPay: Record<string, number>;
+  willingPaid: number;
+}
+
+export default function AdminPage() {
+  const [password, setPassword] = useState("");
+  const [metrics, setMetrics] = useState<Metrics | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function loadMetrics() {
+    setIsLoading(true);
+    setError("");
+
+    try {
+      const response = await fetch("/api/metrics", {
+        headers: { "x-admin-password": password },
+      });
+      const payload = (await response.json()) as Metrics | { error?: string };
+      if (!response.ok || "error" in payload) {
+        throw new Error(
+          "error" in payload && payload.error
+            ? payload.error
+            : "Could not load metrics",
+        );
+      }
+      if (!("uniqueActiveUsers" in payload)) {
+        throw new Error("Invalid metrics response");
+      }
+      setMetrics(payload);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "Failed");
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  const ycText = metrics
+    ? `Since applying, I built and launched Introbase, an AI command center for founders' inbound messages. So far, ${metrics.uniqueAnalyzedUsers} users analyzed ${metrics.totalMessages} messages across ${metrics.totalBatches} batches, ${metrics.repeatBatchUsers} users analyzed multiple batches, and ${metrics.feedbackResponses} people submitted feedback. ${metrics.willingPaid} users said they would pay for an expanded version with inbox and DM integrations.`
+    : "";
+
+  return (
+    <main className="mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-6">
+      <div>
+        <h1 className="text-3xl font-semibold tracking-tight">Admin metrics</h1>
+        <p className="mt-2 text-muted-foreground">
+          Founder-only dashboard for MVP usage and feedback.
+        </p>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Password</CardTitle>
+          <CardDescription>Enter the admin password from env.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3 sm:flex-row">
+          <Input
+            type="password"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            placeholder="ADMIN_PASSWORD"
+          />
+          <Button onClick={loadMetrics} disabled={isLoading || !password}>
+            {isLoading ? <Loader2 className="size-4 animate-spin" /> : null}
+            Load metrics
+          </Button>
+        </CardContent>
+      </Card>
+
+      {error ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          {error}
+        </div>
+      ) : null}
+
+      {metrics ? (
+        <>
+          <section className="grid gap-4 md:grid-cols-3">
+            {[
+              ["Unique active users", metrics.uniqueActiveUsers],
+              ["Users analyzed", metrics.uniqueAnalyzedUsers],
+              ["Message batches", metrics.totalBatches],
+              ["Messages analyzed", metrics.totalMessages],
+              ["Repeat batch users", metrics.repeatBatchUsers],
+              ["Later-day returns", metrics.laterDayReturningUsers],
+              ["Replies copied", metrics.repliesCopied],
+              ["Contacts saved", metrics.contactsSaved],
+              ["Follow-ups created", metrics.followupsCreated],
+              ["Feedback forms", metrics.feedbackResponses],
+              ["Emails collected", metrics.emailsCollected],
+              ["Priority changes", metrics.priorityChanges],
+            ].map(([label, value]) => (
+              <Card key={label}>
+                <CardHeader>
+                  <CardDescription>{label}</CardDescription>
+                  <CardTitle className="text-3xl">{value}</CardTitle>
+                </CardHeader>
+              </Card>
+            ))}
+          </section>
+
+          <section className="grid gap-4 md:grid-cols-3">
+            <Breakdown title="Usefulness" values={metrics.usefulRatings} />
+            <Breakdown title="Would use again" values={metrics.wouldUseAgain} />
+            <Breakdown title="Willingness to pay" values={metrics.willingnessToPay} />
+          </section>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Suggested YC update text</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="leading-7">{ycText}</p>
+            </CardContent>
+          </Card>
+        </>
+      ) : null}
+    </main>
+  );
+}
+
+function Breakdown({
+  title,
+  values,
+}: {
+  title: string;
+  values: Record<string, number>;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {Object.entries(values).length === 0 ? (
+          <p className="text-sm text-muted-foreground">No responses yet.</p>
+        ) : (
+          Object.entries(values).map(([label, value]) => (
+            <div key={label} className="flex justify-between gap-4 text-sm">
+              <span>{label}</span>
+              <span className="font-medium">{value}</span>
+            </div>
+          ))
+        )}
+      </CardContent>
+    </Card>
+  );
+}
