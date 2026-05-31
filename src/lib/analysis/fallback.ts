@@ -38,7 +38,7 @@ function classify(text: string): {
   const lower = text.toLowerCase();
   const tags: string[] = [];
 
-  if (/invest|fund|deck|vc|seed/.test(lower)) {
+  if (/invest|fund|deck|\bvc\b|seed|raising/.test(lower)) {
     tags.push("investor");
     return {
       category: "investor",
@@ -49,7 +49,7 @@ function classify(text: string): {
     };
   }
 
-  if (/customer|pilot|pay|users|try|test|team/.test(lower)) {
+  if (/customer|pilot|\bpay\b|\busers?\b|\btry\b|\btest\b|\bteam\b/.test(lower)) {
     tags.push("customer");
     return {
       category: "customer",
@@ -60,7 +60,7 @@ function classify(text: string): {
     };
   }
 
-  if (/deadline|due|application|document|verification/.test(lower)) {
+  if (/deadline|\bdue\b|application|document|verification/.test(lower)) {
     tags.push("deadline");
     return {
       category: "application",
@@ -82,7 +82,7 @@ function classify(text: string): {
     };
   }
 
-  if (/recruiter|role|hiring|engineer/.test(lower)) {
+  if (/recruiter|\brole\b|hiring|\bengineer\b/.test(lower)) {
     tags.push("hiring");
     return {
       category: "hiring",
@@ -93,7 +93,7 @@ function classify(text: string): {
     };
   }
 
-  if (/newsletter|outbound|pricing|leads|sales/.test(lower)) {
+  if (/newsletter|outbound|pricing|leads|\bsales\b/.test(lower)) {
     tags.push("sales");
     return {
       category: "sales",
@@ -104,7 +104,7 @@ function classify(text: string): {
     };
   }
 
-  if (/friend|family|personal|call/.test(lower)) {
+  if (/friend|family|personal|\bcall\b/.test(lower)) {
     tags.push("personal");
     return {
       category: "personal",
@@ -177,6 +177,9 @@ function applyPriorityBudget(messages: AnalyzedMessage[]): AnalyzedMessage[] {
 
 export function createFallbackAnalysis(
   rawMessages: string,
+  // Kept for signature parity with the LLM path; the heuristic classifier
+  // intentionally ignores goal context to avoid keyword false positives.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   userGoals: UserGoals,
 ): AnalysisResult {
   const blocks = splitMessages(rawMessages);
@@ -184,7 +187,7 @@ export function createFallbackAnalysis(
     const source = field(block, "Source") || "Other";
     const from = field(block, "From") || `Sender ${index + 1}`;
     const [senderName, senderOrganization] = from.split(/\s+at\s+/i);
-    const classified = classify(`${block}\n${userGoals.context}`);
+    const classified = classify(block);
     const summary = summarize(block);
     const followUpDate =
       classified.urgency === "follow_up_later" ? nextBusinessDate(5) : "";
