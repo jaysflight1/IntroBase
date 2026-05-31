@@ -33,7 +33,7 @@ export function AppNav() {
                 href={item.href}
                 className={cn(
                   "flex h-9 items-center gap-2 rounded-md px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-                  active && "bg-muted text-foreground",
+                  active && "bg-accent text-accent-foreground hover:bg-accent hover:text-accent-foreground",
                 )}
               >
                 <Icon className="size-4" />
