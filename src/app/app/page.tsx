@@ -17,7 +17,7 @@ export default function AppIndexPage() {
   }, [router]);
 
   return (
-    <div className="rounded-lg border bg-white p-8 text-sm text-muted-foreground">
+    <div className="surface-card p-8 text-sm text-muted-foreground">
       Opening Introbase...
     </div>
   );

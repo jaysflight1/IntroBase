@@ -50,7 +50,7 @@ export default function FollowUpsPage() {
 
   if (followups.length === 0) {
     return (
-      <div className="rounded-lg border bg-white p-8">
+      <div className="surface-card p-8">
         <h1 className="text-2xl font-semibold">Follow-ups</h1>
         <p className="mt-2 text-muted-foreground">
           Create follow-ups from messages or contacts to track next steps.
@@ -81,7 +81,7 @@ export default function FollowUpsPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm leading-6">{followup.reason}</p>
-              <div className="rounded-md border bg-zinc-50 p-3 text-sm leading-6">
+              <div className="rounded-md border border-primary/15 bg-primary/5 p-3 text-sm leading-6">
                 {followup.suggestedMessage}
               </div>
               <Button

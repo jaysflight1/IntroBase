@@ -184,7 +184,7 @@ export function createFallbackAnalysis(
 ): AnalysisResult {
   const blocks = splitMessages(rawMessages);
   const initialMessages: AnalyzedMessage[] = blocks.map((block, index) => {
-    const source = field(block, "Source") || "Other";
+    const source = field(block, "Source");
     const from = field(block, "From") || `Sender ${index + 1}`;
     const [senderName, senderOrganization] = from.split(/\s+at\s+/i);
     const classified = classify(block);
@@ -252,7 +252,9 @@ export function createFallbackAnalysis(
   return {
     messages,
     contacts,
-    sourceTypes: Array.from(new Set(messages.map((message) => message.source))),
+    sourceTypes: Array.from(
+      new Set(messages.map((message) => message.source).filter(Boolean)),
+    ),
     categoryCounts,
     messageCount: messages.length,
   };

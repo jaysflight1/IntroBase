@@ -5,6 +5,7 @@ import {
   analyzePayloadSchema,
 } from "@/lib/apiSchemas";
 import { createFallbackAnalysis } from "@/lib/analysis/fallback";
+import { normalizeSourceValue } from "@/lib/normalizeSource";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 
 const MODEL = "gpt-4.1-mini";
@@ -110,7 +111,10 @@ export async function POST(request: Request) {
     );
     const fallback = createFallbackAnalysis(raw_messages, user_goals);
     const result = analysisResultSchema.parse(llmResult ?? fallback);
-    const messages = result.messages.slice(0, 50);
+    const messages = result.messages.slice(0, 50).map((message) => ({
+      ...message,
+      source: normalizeSourceValue(message.source),
+    }));
     const categoryCounts = messages.reduce<Record<string, number>>(
       (counts, message) => {
         counts[message.category] = (counts[message.category] ?? 0) + 1;
@@ -123,7 +127,9 @@ export async function POST(request: Request) {
       messages,
       categoryCounts,
       messageCount: messages.length,
-      sourceTypes: Array.from(new Set(messages.map((message) => message.source))),
+      sourceTypes: Array.from(
+        new Set(messages.map((message) => message.source).filter(Boolean)),
+      ),
     };
 
     const priorityCounts = messages.reduce(

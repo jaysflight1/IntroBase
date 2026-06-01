@@ -37,6 +37,8 @@ import { readJson, writeJson } from "@/lib/browserStorage";
 import { logEvent } from "@/lib/logEvent";
 import { makeClientId } from "@/lib/normalize";
 import { STORAGE_KEYS } from "@/lib/storageKeys";
+import { getLaneVisualByUrgency, getPriorityBadgeClass } from "@/lib/laneStyles";
+import { formatMessageSubtitle } from "@/lib/messageDisplay";
 import { cn } from "@/lib/utils";
 import type {
   AnalysisResult,
@@ -53,13 +55,6 @@ const columns: { title: string; urgencies: Urgency[] }[] = [
   { title: "Follow up later", urgencies: ["follow_up_later"] },
   { title: "Low priority", urgencies: ["low_priority", "ignore"] },
 ];
-
-function priorityTone(priority: Priority) {
-  if (priority === "high") return "border-red-200 bg-red-50 text-red-700";
-  if (priority === "medium")
-    return "border-amber-200 bg-amber-50 text-amber-700";
-  return "border-zinc-200 bg-zinc-50 text-zinc-700";
-}
 
 export default function BoardPage() {
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(() =>
@@ -221,17 +216,32 @@ export default function BoardPage() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-4">
-        {grouped.map((column) => (
+        {grouped.map((column) => {
+          const laneVisual = getLaneVisualByUrgency(column.urgencies[0]);
+
+          return (
           <section key={column.title} className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="font-semibold">{column.title}</h2>
-              <Badge variant="outline">{column.messages.length}</Badge>
+            <div
+              className={cn(
+                "flex items-center justify-between rounded-lg border px-3 py-2",
+                laneVisual.column,
+              )}
+            >
+              <div className="flex items-center gap-2">
+                <span className={cn("size-2 rounded-full", laneVisual.dot)} />
+                <h2 className={cn("font-semibold", laneVisual.accent)}>
+                  {column.title}
+                </h2>
+              </div>
+              <Badge variant="outline" className="bg-card/80">
+                {column.messages.length}
+              </Badge>
             </div>
             <div className="space-y-3">
               {column.messages.map((message) => (
                 <Card
                   key={message.id}
-                  className="cursor-pointer transition-shadow hover:shadow-md"
+                  className="cursor-pointer border-border/80 shadow-sm transition-all hover:border-primary/20 hover:shadow-md hover:shadow-primary/5"
                   onClick={() => openMessage(message)}
                 >
                   <CardHeader className="space-y-3">
@@ -240,9 +250,11 @@ export default function BoardPage() {
                         <CardTitle className="text-base">
                           {message.senderName}
                         </CardTitle>
-                        <CardDescription>{message.source}</CardDescription>
+                        {message.source ? (
+                          <CardDescription>{message.source}</CardDescription>
+                        ) : null}
                       </div>
-                      <Badge className={priorityTone(message.priority)}>
+                      <Badge className={getPriorityBadgeClass(message.priority)}>
                         {message.priority}
                       </Badge>
                     </div>
@@ -260,13 +272,14 @@ export default function BoardPage() {
                 </Card>
               ))}
               {column.messages.length === 0 ? (
-                <div className="rounded-lg border border-dashed bg-white p-4 text-sm text-muted-foreground">
+                <div className="rounded-lg border border-dashed border-border/80 bg-card/60 p-4 text-sm text-muted-foreground">
                   No messages in this lane.
                 </div>
               ) : null}
             </div>
           </section>
-        ))}
+        );
+        })}
       </div>
 
       <Sheet open={Boolean(selected)} onOpenChange={() => setSelected(null)}>
@@ -275,7 +288,11 @@ export default function BoardPage() {
             <SheetHeader>
               <SheetTitle>{selected.senderName}</SheetTitle>
               <SheetDescription>
-                {selected.source} · {selected.category} · {selected.priority}
+                {formatMessageSubtitle(
+                  selected.source,
+                  selected.category,
+                  selected.priority,
+                )}
               </SheetDescription>
             </SheetHeader>
             <div className="mt-6 space-y-6">
@@ -293,7 +310,7 @@ export default function BoardPage() {
               </section>
               <section>
                 <h3 className="text-sm font-semibold">Suggested reply</h3>
-                <div className="mt-2 rounded-md border bg-zinc-50 p-3 text-sm leading-6">
+                <div className="mt-2 rounded-md border border-primary/15 bg-primary/5 p-3 text-sm leading-6">
                   {selected.suggestedReply}
                 </div>
               </section>

@@ -82,7 +82,7 @@ export const analysisResultSchema = z.object({
     .array(
       z.object({
         id: z.string().min(1),
-        source: z.string().min(1),
+        source: z.string().default(""),
         senderName: z.string().min(1),
         senderOrganization: z.string().optional().default(""),
         senderRole: z.string().optional().default(""),
@@ -109,7 +109,7 @@ export const analysisResultSchema = z.object({
         name: z.string().min(1),
         organization: z.string().optional().default(""),
         role: z.string().optional().default(""),
-        source: z.string().min(1),
+        source: z.string().default(""),
         tags: z.array(z.string()).default([]),
         lastInteractionSummary: z.string().min(1),
         priority: prioritySchema,

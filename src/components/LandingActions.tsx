@@ -1,5 +1,6 @@
 "use client";
 
+import type { JSX } from "react";
 import Link from "next/link";
 import { ArrowRight, PlayCircle } from "lucide-react";
 
@@ -7,9 +8,21 @@ import { buttonVariants } from "@/components/ui/button";
 import { logEvent } from "@/lib/logEvent";
 import { cn } from "@/lib/utils";
 
-export function LandingActions() {
+interface LandingActionsProps {
+  compact?: boolean;
+}
+
+export function LandingActions({
+  compact = false,
+}: LandingActionsProps): JSX.Element {
   return (
-    <div className="flex flex-col gap-3 sm:flex-row">
+    <div
+      className={
+        compact
+          ? "hidden gap-2 sm:flex"
+          : "flex flex-col gap-3 sm:flex-row"
+      }
+    >
       <Link
         href="/app/import"
         className={cn(buttonVariants({ size: "lg" }), "gap-2")}

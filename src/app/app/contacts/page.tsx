@@ -87,7 +87,7 @@ export default function ContactsPage() {
 
   if (contacts.length === 0) {
     return (
-      <div className="rounded-lg border bg-white p-8">
+      <div className="surface-card p-8">
         <h1 className="text-2xl font-semibold">Contacts</h1>
         <p className="mt-2 text-muted-foreground">
           Saved contacts and extracted people will appear here after analysis.
@@ -104,7 +104,7 @@ export default function ContactsPage() {
           Lightweight relationship context extracted from your analyzed inbound.
         </p>
       </div>
-      <div className="overflow-x-auto rounded-lg border bg-white">
+      <div className="surface-card overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -121,9 +121,11 @@ export default function ContactsPage() {
               <TableRow key={contact.id}>
                 <TableCell>
                   <div className="font-medium">{contact.name}</div>
-                  <div className="text-sm text-muted-foreground">
-                    {contact.source}
-                  </div>
+                  {contact.source ? (
+                    <div className="text-sm text-muted-foreground">
+                      {contact.source}
+                    </div>
+                  ) : null}
                 </TableCell>
                 <TableCell>{contact.organization || "-"}</TableCell>
                 <TableCell>

@@ -145,11 +145,10 @@ function ImportView() {
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
       <section className="space-y-5">
         <div>
-          <p className="text-sm font-medium text-muted-foreground">
-            Manual paste beta
-          </p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight">
-            Paste messy inbound. Introbase ranks what matters.
+          <h1 className="text-3xl font-semibold tracking-tight">
+            Paste messy inbound.{" "}
+            <span className="text-brand-gradient">Introbase ranks</span> what
+            matters.
           </h1>
         </div>
 
@@ -168,7 +167,7 @@ function ImportView() {
             <Textarea
               value={rawMessages}
               onChange={(event) => setRawMessages(event.target.value)}
-              className="min-h-[420px] resize-y bg-white font-mono text-sm"
+              className="min-h-[420px] resize-y bg-card font-mono text-sm"
               placeholder={`Source: LinkedIn
 From: Maya Chen
 Message: Hey, I saw what you're building and would love to talk about a possible pilot with our accelerator.`}
@@ -211,7 +210,7 @@ Message: Hey, I saw what you're building and would love to talk about a possible
             {defaultGoalOptions.map((goal) => (
               <label
                 key={goal}
-                className="flex cursor-pointer items-center gap-3 rounded-md border p-3 text-sm"
+                className="flex cursor-pointer items-center gap-3 rounded-lg border border-border/80 bg-card p-3 text-sm transition-colors hover:border-primary/25 hover:bg-accent/30"
               >
                 <Checkbox
                   checked={prioritize.includes(goal)}
@@ -233,13 +232,13 @@ Message: Hey, I saw what you're building and would love to talk about a possible
           </CardContent>
         </Card>
 
-        <Card className="border-blue-200 bg-blue-50">
+        <Card className="border-primary/25 bg-gradient-to-br from-primary/10 via-card to-chart-3/10">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-blue-950">
+            <CardTitle className="flex items-center gap-2 text-primary">
               <ShieldCheck className="size-5" />
               Privacy note
             </CardTitle>
-            <CardDescription className="text-blue-900">
+            <CardDescription className="text-foreground/80">
               Introbase does not store your raw pasted messages server-side by
               default. The analyzed board is saved locally in this browser.
             </CardDescription>
@@ -254,7 +253,7 @@ export default function ImportPage() {
   return (
     <Suspense
       fallback={
-        <div className="rounded-lg border bg-white p-8 text-sm text-muted-foreground">
+        <div className="surface-card p-8 text-sm text-muted-foreground">
           Loading import screen...
         </div>
       }
