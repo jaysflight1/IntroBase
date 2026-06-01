@@ -3,20 +3,39 @@ import { CheckCircle2 } from "lucide-react";
 import { LandingActions } from "@/components/LandingActions";
 import { LogoLink } from "@/components/LogoLink";
 import { VisitLogger } from "@/components/VisitLogger";
-import { getLaneVisualByTitle, getPriorityBadgeClass } from "@/lib/laneStyles";
+import {
+  getTimingAccentClass,
+  getTimingBadgeClass,
+  getTimingBarClass,
+  getTimingCardClass,
+  getTimingLabel,
+  getTimingPersonClass,
+} from "@/lib/replyTiming";
 import { cn } from "@/lib/utils";
-import type { Priority } from "@/types";
+import type { Urgency } from "@/types";
 
-const demoCards = [
-  { lane: "Reply now", title: "Accelerator pilot request", priority: "high" as const },
-  { lane: "This week", title: "Investor wants a deck", priority: "high" as const },
+const demoCards: { title: string; example: string; timing: Urgency }[] = [
   {
-    lane: "Follow up later",
-    title: "Recruiter opportunity",
-    priority: "medium" as const,
+    timing: "today",
+    title: "Today",
+    example: "Accelerator pilot request",
   },
-  { lane: "Low priority", title: "Generic outbound pitch", priority: "low" as const },
-] as const;
+  {
+    timing: "this_week",
+    title: "This week",
+    example: "Investor wants a deck",
+  },
+  {
+    timing: "this_month",
+    title: "This month",
+    example: "Recruiter opportunity",
+  },
+  {
+    timing: "later",
+    title: "Later",
+    example: "Generic outbound pitch",
+  },
+];
 
 const features = [
   [
@@ -31,7 +50,7 @@ const features = [
   ],
   [
     "See who to reply to first",
-    "A simple priority board replaces scattered context switching.",
+    "A simple reply board replaces scattered context switching.",
     "from-chart-3 to-chart-4",
   ],
   [
@@ -40,12 +59,6 @@ const features = [
     "from-chart-4 to-chart-5",
   ],
 ] as const;
-
-const priorityLabels: Record<Priority, string> = {
-  high: "High",
-  medium: "Medium",
-  low: "Low",
-};
 
 export default function Home() {
   return (
@@ -76,42 +89,48 @@ export default function Home() {
 
           <div className="surface-card-muted p-4 ring-1 ring-primary/10">
             <div className="space-y-3">
-              {demoCards.map(({ lane, title, priority }) => {
-                const visual = getLaneVisualByTitle(lane);
-
-                return (
-                  <div
-                    key={title}
-                    className="surface-card overflow-hidden p-0 transition-shadow hover:shadow-md"
-                  >
-                    <div className={cn("h-1 w-full", visual.dot)} />
-                    <div className="p-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <p
-                          className={cn(
-                            "text-xs font-semibold uppercase tracking-wide",
-                            visual.accent,
-                          )}
-                        >
-                          {lane}
-                        </p>
-                        <span
-                          className={cn(
-                            "rounded-full border px-2 py-0.5 text-xs font-medium capitalize",
-                            getPriorityBadgeClass(priority),
-                          )}
-                        >
-                          {priorityLabels[priority]}
-                        </span>
-                      </div>
-                      <p className="mt-2 font-medium">{title}</p>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        Suggested action: reply with a short next-step ask.
+              {demoCards.map(({ timing, title, example }) => (
+                <div
+                  key={timing}
+                  className={cn(
+                    "surface-card overflow-hidden border p-0 transition-shadow hover:shadow-md",
+                    getTimingCardClass(timing),
+                  )}
+                >
+                  <div className={cn("h-1 w-full", getTimingBarClass(timing))} />
+                  <div className="p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <p
+                        className={cn(
+                          "text-xs font-semibold uppercase tracking-wide",
+                          getTimingAccentClass(timing),
+                        )}
+                      >
+                        {title}
                       </p>
+                      <span
+                        className={cn(
+                          "rounded-full border px-2 py-0.5 text-xs font-medium",
+                          getTimingBadgeClass(timing),
+                        )}
+                      >
+                        {getTimingLabel(timing)}
+                      </span>
                     </div>
+                    <p
+                      className={cn(
+                        "mt-2 font-medium",
+                        getTimingPersonClass(timing),
+                      )}
+                    >
+                      {example}
+                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Suggested action: reply with a short next-step ask.
+                    </p>
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </div>
           </div>
         </section>

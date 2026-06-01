@@ -4,6 +4,14 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
+import {
+  getTimingBadgeClass,
+  getTimingLabel,
+  getTimingPersonClass,
+  getTimingRowClass,
+  priorityToUrgency,
+  urgencyToPriority,
+} from "@/lib/replyTiming";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -18,6 +26,7 @@ import { readJson, writeJson } from "@/lib/browserStorage";
 import { getFollowUpStatus } from "@/lib/followups";
 import { logEvent } from "@/lib/logEvent";
 import { makeClientId } from "@/lib/normalize";
+import { cn } from "@/lib/utils";
 import { STORAGE_KEYS } from "@/lib/storageKeys";
 import type { ExtractedContact, FollowUp } from "@/types";
 
@@ -45,7 +54,9 @@ export default function ContactsPage() {
   function markImportant(contact: ExtractedContact) {
     persist(
       contacts.map((item) =>
-        item.id === contact.id ? { ...item, priority: "high" } : item,
+        item.id === contact.id
+          ? { ...item, priority: urgencyToPriority("today") }
+          : item,
       ),
     );
     void logEvent("saved_contact", { contact_id: contact.id, priority: "high" });
@@ -117,10 +128,23 @@ export default function ContactsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {sortedContacts.map((contact) => (
-              <TableRow key={contact.id}>
+            {sortedContacts.map((contact) => {
+              const timing = priorityToUrgency(contact.priority);
+
+              return (
+              <TableRow
+                key={contact.id}
+                className={getTimingRowClass(timing)}
+              >
                 <TableCell>
-                  <div className="font-medium">{contact.name}</div>
+                  <div
+                    className={cn(
+                      "font-medium",
+                      getTimingPersonClass(timing),
+                    )}
+                  >
+                    {contact.name}
+                  </div>
                   {contact.source ? (
                     <div className="text-sm text-muted-foreground">
                       {contact.source}
@@ -137,7 +161,11 @@ export default function ContactsPage() {
                     ))}
                   </div>
                 </TableCell>
-                <TableCell>{contact.priority}</TableCell>
+                <TableCell>
+                  <Badge className={getTimingBadgeClass(timing)}>
+                    {getTimingLabel(timing)}
+                  </Badge>
+                </TableCell>
                 <TableCell className="min-w-64">
                   <div>{contact.nextStep}</div>
                   {editingId === contact.id ? (
@@ -178,7 +206,8 @@ export default function ContactsPage() {
                   </div>
                 </TableCell>
               </TableRow>
-            ))}
+            );
+            })}
           </TableBody>
         </Table>
       </div>

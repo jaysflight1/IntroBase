@@ -5,6 +5,7 @@ import {
   analyzePayloadSchema,
 } from "@/lib/apiSchemas";
 import { createFallbackAnalysis } from "@/lib/analysis/fallback";
+import { migrateAnalysisResult } from "@/lib/replyTiming";
 import { normalizeSourceValue } from "@/lib/normalizeSource";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 
@@ -60,7 +61,7 @@ async function analyzeWithOpenAI(rawMessages: string, userGoals: unknown) {
         {
           role: "system",
           content:
-            "You are Introbase, an AI system that turns messy pasted inbound messages into a structured priority inbox for founders and busy builders. Prioritize opportunity value, time sensitivity, relationship importance, specific asks or deadlines, and relevance to the user's goals. Do not over-rank generic spam, newsletters, vague sales pitches, or low-effort messages. Use high priority sparingly: for a normal 10-20 message batch, aim for roughly 5-7 high priority items unless true urgency/importance clearly requires more; for smaller batches, usually stay below half the batch. Actual importance and urgency are still the first determinant. Return valid JSON only matching this shape: { messages: [...], contacts: [...], sourceTypes: string[], categoryCounts: {}, messageCount: number }.",
+            "You are Introbase, an AI system that turns messy pasted inbound messages into a structured reply inbox for founders and busy builders. Assign each message exactly one urgency timing: today (reply today), this_week (reply this week), this_month (reply this month), later (low urgency), or ignore. Also set priority to match timing: today=high, this_week=medium, this_month=medium, later=low, ignore=low. Prioritize opportunity value, time sensitivity, relationship importance, specific asks or deadlines, and relevance to the user's goals. Do not over-rank generic spam, newsletters, vague sales pitches, or low-effort messages. Use today sparingly: for a normal 10-20 message batch, aim for roughly 5-7 today items unless true urgency clearly requires more. Return valid JSON only matching this shape: { messages: [...], contacts: [...], sourceTypes: string[], categoryCounts: {}, messageCount: number }.",
         },
         {
           role: "user",
@@ -122,7 +123,7 @@ export async function POST(request: Request) {
       },
       {},
     );
-    const normalized = {
+    const normalized = migrateAnalysisResult({
       ...result,
       messages,
       categoryCounts,
@@ -130,7 +131,7 @@ export async function POST(request: Request) {
       sourceTypes: Array.from(
         new Set(messages.map((message) => message.source).filter(Boolean)),
       ),
-    };
+    });
 
     const priorityCounts = messages.reduce(
       (counts, message) => {

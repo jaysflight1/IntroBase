@@ -3,10 +3,11 @@ import type {
   AnalyzedMessage,
   ExtractedContact,
   MessageCategory,
-  Priority,
   Urgency,
   UserGoals,
 } from "@/types";
+
+import { syncMessageTiming, urgencyToPriority } from "@/lib/replyTiming";
 
 function splitMessages(rawMessages: string): string[] {
   const sourceBlocks = rawMessages
@@ -30,7 +31,6 @@ function field(block: string, label: string): string {
 
 function classify(text: string): {
   category: MessageCategory;
-  priority: Priority;
   urgency: Urgency;
   score: number;
   tags: string[];
@@ -42,8 +42,7 @@ function classify(text: string): {
     tags.push("investor");
     return {
       category: "investor",
-      priority: "high",
-      urgency: "reply_now",
+      urgency: "today",
       score: 92,
       tags,
     };
@@ -53,8 +52,7 @@ function classify(text: string): {
     tags.push("customer");
     return {
       category: "customer",
-      priority: "high",
-      urgency: "reply_now",
+      urgency: "today",
       score: 88,
       tags,
     };
@@ -64,8 +62,7 @@ function classify(text: string): {
     tags.push("deadline");
     return {
       category: "application",
-      priority: "high",
-      urgency: "reply_now",
+      urgency: "today",
       score: 84,
       tags,
     };
@@ -75,8 +72,7 @@ function classify(text: string): {
     tags.push("mentor");
     return {
       category: "mentor",
-      priority: "medium",
-      urgency: "reply_this_week",
+      urgency: "this_week",
       score: 72,
       tags,
     };
@@ -86,8 +82,7 @@ function classify(text: string): {
     tags.push("hiring");
     return {
       category: "hiring",
-      priority: "medium",
-      urgency: "follow_up_later",
+      urgency: "this_month",
       score: 58,
       tags,
     };
@@ -97,8 +92,7 @@ function classify(text: string): {
     tags.push("sales");
     return {
       category: "sales",
-      priority: "low",
-      urgency: "low_priority",
+      urgency: "later",
       score: 22,
       tags,
     };
@@ -108,8 +102,7 @@ function classify(text: string): {
     tags.push("personal");
     return {
       category: "personal",
-      priority: "medium",
-      urgency: "reply_this_week",
+      urgency: "this_week",
       score: 50,
       tags,
     };
@@ -117,8 +110,7 @@ function classify(text: string): {
 
   return {
     category: "other",
-    priority: "low",
-    urgency: "follow_up_later",
+    urgency: "this_month",
     score: 40,
     tags: ["inbound"],
   };
@@ -141,36 +133,51 @@ function nextBusinessDate(days = 3): string {
   return date.toISOString().slice(0, 10);
 }
 
-function highPriorityBudget(messageCount: number): number {
+function todayBudget(messageCount: number): number {
   if (messageCount <= 6) return Math.min(3, messageCount);
   if (messageCount <= 12) return 5;
   if (messageCount <= 20) return 7;
   return Math.ceil(messageCount * 0.35);
 }
 
-function applyPriorityBudget(messages: AnalyzedMessage[]): AnalyzedMessage[] {
-  const budget = highPriorityBudget(messages.length);
-  let highCount = 0;
+function suggestedActionFor(urgency: Urgency): string {
+  if (urgency === "today") return "Reply today with a clear next step.";
+  if (urgency === "this_week") return "Reply this week or schedule a follow-up.";
+  if (urgency === "this_month") return "Follow up this month when you have bandwidth.";
+  return "Archive, ignore, or handle after higher-priority messages.";
+}
+
+function whyItMattersFor(urgency: Urgency): string {
+  if (urgency === "today") {
+    return "This message appears tied to a concrete opportunity, deadline, customer, or investor conversation.";
+  }
+  if (urgency === "later") {
+    return "This message may be useful, but it can wait behind more time-sensitive inbound.";
+  }
+  return "This message may be useful, but it is less urgent than the most time-sensitive inbound.";
+}
+
+function applyTodayBudget(messages: AnalyzedMessage[]): AnalyzedMessage[] {
+  const budget = todayBudget(messages.length);
+  let todayCount = 0;
 
   return [...messages]
     .sort((a, b) => b.priorityScore - a.priorityScore)
     .map((message) => {
-      if (message.priority !== "high") return message;
-      highCount += 1;
+      if (message.urgency !== "today") return message;
+      todayCount += 1;
 
-      if (highCount <= budget || message.priorityScore >= 95) {
+      if (todayCount <= budget || message.priorityScore >= 95) {
         return message;
       }
 
-      return {
+      return syncMessageTiming({
         ...message,
-        priority: "medium" as const,
-        urgency:
-          message.urgency === "reply_now" ? "reply_this_week" : message.urgency,
-        suggestedAction: "Reply this week after the highest-priority items.",
+        urgency: "this_week",
+        suggestedAction: "Reply this week after the most time-sensitive messages.",
         whyItMatters:
-          "This is relevant, but it ranks below the most urgent and valuable messages in this batch.",
-      };
+          "This is relevant, but it ranks below the most urgent messages in this batch.",
+      });
     })
     .sort((a, b) => Number(a.id.split("_")[1]) - Number(b.id.split("_")[1]));
 }
@@ -190,9 +197,11 @@ export function createFallbackAnalysis(
     const classified = classify(block);
     const summary = summarize(block);
     const followUpDate =
-      classified.urgency === "follow_up_later" ? nextBusinessDate(5) : "";
+      classified.urgency === "this_month" || classified.urgency === "later"
+        ? nextBusinessDate(classified.urgency === "later" ? 14 : 7)
+        : "";
 
-    return {
+    return syncMessageTiming({
       id: `msg_${index + 1}`,
       source,
       senderName: senderName.trim(),
@@ -201,30 +210,22 @@ export function createFallbackAnalysis(
       originalText: block,
       summary,
       category: classified.category,
-      priority: classified.priority,
+      priority: urgencyToPriority(classified.urgency),
       urgency: classified.urgency,
       priorityScore: classified.score,
       deadline: /due|deadline/i.test(block) ? "Check message deadline" : "",
-      suggestedAction:
-        classified.priority === "high"
-          ? "Reply today with a clear next step."
-          : classified.priority === "medium"
-            ? "Reply this week or schedule a follow-up."
-            : "Archive, ignore, or handle after higher-priority messages.",
+      suggestedAction: suggestedActionFor(classified.urgency),
       suggestedReply:
-        classified.priority === "low"
+        classified.urgency === "later"
           ? "Thanks for reaching out. I am focused on a few priorities right now, but I appreciate the note."
           : "Thanks for reaching out. This is relevant, and I would like to find a good next step. Are you available for a brief call this week?",
-      whyItMatters:
-        classified.priority === "high"
-          ? "This message appears tied to a concrete opportunity, deadline, customer, or investor conversation."
-          : "This message may be useful, but it is less urgent than the highest-value inbound.",
+      whyItMatters: whyItMattersFor(classified.urgency),
       followUpDate,
       contactTags: classified.tags,
       status: "new",
-    };
+    });
   });
-  const messages = applyPriorityBudget(initialMessages);
+  const messages = applyTodayBudget(initialMessages);
 
   const contacts: ExtractedContact[] = messages
     .filter((message) => message.category !== "spam" && message.category !== "sales")

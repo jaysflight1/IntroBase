@@ -13,17 +13,56 @@ import {
 } from "@/components/ui/card";
 import { readJson, writeJson } from "@/lib/browserStorage";
 import { getFollowUpStatus } from "@/lib/followups";
+import {
+  getTimingCardClass,
+  getTimingPersonClass,
+  migrateUrgency,
+  priorityToUrgency,
+} from "@/lib/replyTiming";
 import { STORAGE_KEYS } from "@/lib/storageKeys";
-import type { FollowUp } from "@/types";
+import type {
+  AnalysisResult,
+  ExtractedContact,
+  FollowUp,
+  Urgency,
+} from "@/types";
 
 function statusLabel(status: FollowUp["status"]) {
   if (status === "due_today") return "Due today";
   return status.replace("_", " ");
 }
 
+function resolveFollowUpTiming(
+  followup: FollowUp,
+  contacts: ExtractedContact[],
+  analysis: AnalysisResult | null,
+): Urgency {
+  const message = analysis?.messages.find(
+    (item) => item.id === followup.messageId,
+  );
+  if (message) return migrateUrgency(message.urgency);
+
+  const contact = contacts.find(
+    (item) =>
+      item.id === followup.contactId ||
+      item.name.toLowerCase() === followup.person.toLowerCase(),
+  );
+  if (contact) return priorityToUrgency(contact.priority);
+
+  return "this_month";
+}
+
 export default function FollowUpsPage() {
   const [followups, setFollowups] = useState<FollowUp[]>(() =>
     readJson<FollowUp[]>(STORAGE_KEYS.followups, []),
+  );
+  const contacts = useMemo(
+    () => readJson<ExtractedContact[]>(STORAGE_KEYS.savedContacts, []),
+    [],
+  );
+  const analysis = useMemo(
+    () => readJson<AnalysisResult | null>(STORAGE_KEYS.currentAnalysis, null),
+    [],
   );
 
   const normalized = useMemo(
@@ -31,13 +70,14 @@ export default function FollowUpsPage() {
       followups
         .map((followup) => ({
           ...followup,
+          timing: resolveFollowUpTiming(followup, contacts, analysis),
           status:
             followup.status === "done"
               ? "done"
               : getFollowUpStatus(followup.followUpDate),
         }))
         .sort((a, b) => a.followUpDate.localeCompare(b.followUpDate)),
-    [followups],
+    [followups, contacts, analysis],
   );
 
   function markDone(id: string) {
@@ -69,11 +109,16 @@ export default function FollowUpsPage() {
       </div>
       <div className="grid gap-4 md:grid-cols-2">
         {normalized.map((followup) => (
-          <Card key={followup.id}>
+          <Card
+            key={followup.id}
+            className={getTimingCardClass(followup.timing)}
+          >
             <CardHeader>
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <CardTitle>{followup.person}</CardTitle>
+                  <CardTitle className={getTimingPersonClass(followup.timing)}>
+                    {followup.person}
+                  </CardTitle>
                   <CardDescription>{followup.followUpDate}</CardDescription>
                 </div>
                 <Badge variant="outline">{statusLabel(followup.status)}</Badge>

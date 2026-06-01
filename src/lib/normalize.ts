@@ -4,13 +4,15 @@ import type {
   Urgency,
 } from "@/types";
 
+import { migrateUrgency } from "@/lib/replyTiming";
+
 export const priorities: Priority[] = ["high", "medium", "low"];
 
 export const urgencies: Urgency[] = [
-  "reply_now",
-  "reply_this_week",
-  "follow_up_later",
-  "low_priority",
+  "today",
+  "this_week",
+  "this_month",
+  "later",
   "ignore",
 ];
 
@@ -33,9 +35,7 @@ export function normalizePriority(value: unknown): Priority {
 }
 
 export function normalizeUrgency(value: unknown): Urgency {
-  return urgencies.includes(value as Urgency)
-    ? (value as Urgency)
-    : "low_priority";
+  return migrateUrgency(value);
 }
 
 export function normalizeCategory(value: unknown): MessageCategory {

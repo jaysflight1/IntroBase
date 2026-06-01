@@ -1,10 +1,10 @@
 export type Priority = "high" | "medium" | "low";
 
 export type Urgency =
-  | "reply_now"
-  | "reply_this_week"
-  | "follow_up_later"
-  | "low_priority"
+  | "today"
+  | "this_week"
+  | "this_month"
+  | "later"
   | "ignore";
 
 export type MessageCategory =

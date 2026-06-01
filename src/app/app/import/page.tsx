@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { defaultGoalOptions, sampleInbox } from "@/data/sampleInbox";
 import { getAnonymousUserId, getSessionId } from "@/lib/anonymousUser";
 import { logEvent } from "@/lib/logEvent";
+import { migrateAnalysisResult } from "@/lib/replyTiming";
 import { STORAGE_KEYS } from "@/lib/storageKeys";
 import { readJson, writeJson } from "@/lib/browserStorage";
 import { Button } from "@/components/ui/button";
@@ -127,7 +128,7 @@ function ImportView() {
         throw new Error("Introbase returned an invalid analysis.");
       }
 
-      writeJson(STORAGE_KEYS.currentAnalysis, payload);
+      writeJson(STORAGE_KEYS.currentAnalysis, migrateAnalysisResult(payload));
       writeJson(STORAGE_KEYS.savedContacts, payload.contacts);
       router.push("/app/board");
     } catch (error) {

@@ -40,7 +40,7 @@ describe("api schemas", () => {
           summary: "Summary",
           category: "customer",
           priority: "high",
-          urgency: "reply_now",
+          urgency: "today",
           priorityScore: 90,
           suggestedAction: "Reply",
           suggestedReply: "Thanks",

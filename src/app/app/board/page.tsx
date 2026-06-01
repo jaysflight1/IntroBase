@@ -37,29 +37,36 @@ import { readJson, writeJson } from "@/lib/browserStorage";
 import { logEvent } from "@/lib/logEvent";
 import { makeClientId } from "@/lib/normalize";
 import { STORAGE_KEYS } from "@/lib/storageKeys";
-import { getLaneVisualByUrgency, getPriorityBadgeClass } from "@/lib/laneStyles";
 import { formatMessageSubtitle } from "@/lib/messageDisplay";
+import {
+  getTimingAccentClass,
+  getTimingBadgeClass,
+  getTimingCardClass,
+  getTimingColumnClass,
+  getTimingDotClass,
+  getTimingLabel,
+  getTimingPersonClass,
+  migrateAnalysisResult,
+  REPLY_TIMINGS,
+  syncMessageTiming,
+  TIMING_COLUMNS,
+} from "@/lib/replyTiming";
 import { cn } from "@/lib/utils";
 import type {
   AnalysisResult,
   AnalyzedMessage,
   ExtractedContact,
   FollowUp,
-  Priority,
-  Urgency,
 } from "@/types";
 
-const columns: { title: string; urgencies: Urgency[] }[] = [
-  { title: "Reply now", urgencies: ["reply_now"] },
-  { title: "This week", urgencies: ["reply_this_week"] },
-  { title: "Follow up later", urgencies: ["follow_up_later"] },
-  { title: "Low priority", urgencies: ["low_priority", "ignore"] },
-];
-
 export default function BoardPage() {
-  const [analysis, setAnalysis] = useState<AnalysisResult | null>(() =>
-    readJson<AnalysisResult | null>(STORAGE_KEYS.currentAnalysis, null),
-  );
+  const [analysis, setAnalysis] = useState<AnalysisResult | null>(() => {
+    const stored = readJson<AnalysisResult | null>(
+      STORAGE_KEYS.currentAnalysis,
+      null,
+    );
+    return stored ? migrateAnalysisResult(stored) : null;
+  });
   const [selected, setSelected] = useState<AnalyzedMessage | null>(null);
 
   useEffect(() => {
@@ -69,7 +76,7 @@ export default function BoardPage() {
   const messages = useMemo(() => analysis?.messages ?? [], [analysis]);
   const grouped = useMemo(
     () =>
-      columns.map((column) => ({
+      TIMING_COLUMNS.map((column) => ({
         ...column,
         messages: messages
           .filter((message) => column.urgencies.includes(message.urgency))
@@ -80,19 +87,26 @@ export default function BoardPage() {
 
   function persist(nextMessages: AnalyzedMessage[]) {
     if (!analysis) return;
-    const next = { ...analysis, messages: nextMessages };
+    const syncedMessages = nextMessages.map(syncMessageTiming);
+    const next = { ...analysis, messages: syncedMessages };
     setAnalysis(next);
     writeJson(STORAGE_KEYS.currentAnalysis, next);
   }
 
   function updateMessage(messageId: string, patch: Partial<AnalyzedMessage>) {
+    const nextMessage = messages
+      .filter((message) => message.id === messageId)
+      .map((message) => syncMessageTiming({ ...message, ...patch }))[0];
+
+    if (!nextMessage) return;
+
     persist(
       messages.map((message) =>
-        message.id === messageId ? { ...message, ...patch } : message,
+        message.id === messageId ? nextMessage : message,
       ),
     );
     setSelected((current) =>
-      current?.id === messageId ? { ...current, ...patch } : current,
+      current?.id === messageId ? nextMessage : current,
     );
   }
 
@@ -167,7 +181,7 @@ export default function BoardPage() {
     writeJson(STORAGE_KEYS.followups, [...followups, followUp]);
     updateMessage(message.id, {
       status: "follow_up",
-      urgency: "follow_up_later",
+      urgency: "this_month",
     });
     toast.success("Follow-up created");
     void logEvent("created_followup", {
@@ -217,19 +231,21 @@ export default function BoardPage() {
 
       <div className="grid gap-4 lg:grid-cols-4">
         {grouped.map((column) => {
-          const laneVisual = getLaneVisualByUrgency(column.urgencies[0]);
+          const columnUrgency = column.urgencies[0];
 
           return (
           <section key={column.title} className="space-y-3">
             <div
               className={cn(
                 "flex items-center justify-between rounded-lg border px-3 py-2",
-                laneVisual.column,
+                getTimingColumnClass(columnUrgency),
               )}
             >
               <div className="flex items-center gap-2">
-                <span className={cn("size-2 rounded-full", laneVisual.dot)} />
-                <h2 className={cn("font-semibold", laneVisual.accent)}>
+                <span
+                  className={cn("size-2 rounded-full", getTimingDotClass(columnUrgency))}
+                />
+                <h2 className={cn("font-semibold", getTimingAccentClass(columnUrgency))}>
                   {column.title}
                 </h2>
               </div>
@@ -241,21 +257,29 @@ export default function BoardPage() {
               {column.messages.map((message) => (
                 <Card
                   key={message.id}
-                  className="cursor-pointer border-border/80 shadow-sm transition-all hover:border-primary/20 hover:shadow-md hover:shadow-primary/5"
+                  className={cn(
+                    "cursor-pointer shadow-sm transition-all hover:shadow-md",
+                    getTimingCardClass(message.urgency),
+                  )}
                   onClick={() => openMessage(message)}
                 >
                   <CardHeader className="space-y-3">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <CardTitle className="text-base">
+                        <CardTitle
+                          className={cn(
+                            "text-base",
+                            getTimingPersonClass(message.urgency),
+                          )}
+                        >
                           {message.senderName}
                         </CardTitle>
                         {message.source ? (
                           <CardDescription>{message.source}</CardDescription>
                         ) : null}
                       </div>
-                      <Badge className={getPriorityBadgeClass(message.priority)}>
-                        {message.priority}
+                      <Badge className={getTimingBadgeClass(message.urgency)}>
+                        {getTimingLabel(message.urgency)}
                       </Badge>
                     </div>
                     <div className="flex flex-wrap gap-2">
@@ -286,12 +310,16 @@ export default function BoardPage() {
         {selected ? (
           <SheetContent className="w-full overflow-y-auto sm:max-w-xl">
             <SheetHeader>
-              <SheetTitle>{selected.senderName}</SheetTitle>
+              <SheetTitle
+                className={getTimingPersonClass(selected.urgency)}
+              >
+                {selected.senderName}
+              </SheetTitle>
               <SheetDescription>
                 {formatMessageSubtitle(
                   selected.source,
                   selected.category,
-                  selected.priority,
+                  selected.urgency,
                 )}
               </SheetDescription>
             </SheetHeader>
@@ -347,8 +375,7 @@ export default function BoardPage() {
                   variant="outline"
                   onClick={() => {
                     updateMessage(selected.id, {
-                      priority: "low",
-                      urgency: "low_priority",
+                      urgency: "later",
                       status: "ignored",
                     });
                     void logEvent("changed_priority", {
@@ -358,7 +385,7 @@ export default function BoardPage() {
                   }}
                 >
                   <Archive className="size-4" />
-                  Low priority
+                  Move to later
                 </Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger
@@ -367,21 +394,24 @@ export default function BoardPage() {
                       "w-full",
                     )}
                   >
-                    Change priority
+                    Change timing
                   </DropdownMenuTrigger>
                   <DropdownMenuContent>
-                    {(["high", "medium", "low"] as Priority[]).map((priority) => (
+                    {REPLY_TIMINGS.map((urgency) => (
                       <DropdownMenuItem
-                        key={priority}
+                        key={urgency}
                         onClick={() => {
-                          updateMessage(selected.id, { priority });
+                          updateMessage(selected.id, { urgency });
                           void logEvent("changed_priority", {
                             message_id: selected.id,
-                            priority,
+                            priority: syncMessageTiming({
+                              ...selected,
+                              urgency,
+                            }).priority,
                           });
                         }}
                       >
-                        {priority}
+                        {getTimingLabel(urgency)}
                       </DropdownMenuItem>
                     ))}
                   </DropdownMenuContent>

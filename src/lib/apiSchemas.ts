@@ -46,13 +46,32 @@ export const feedbackPayloadSchema = z.object({
 });
 
 const prioritySchema = z.enum(["high", "medium", "low"]);
-const urgencySchema = z.enum([
-  "reply_now",
-  "reply_this_week",
-  "follow_up_later",
-  "low_priority",
-  "ignore",
-]);
+const urgencySchema = z
+  .enum([
+    "today",
+    "this_week",
+    "this_month",
+    "later",
+    "ignore",
+    "reply_now",
+    "reply_this_week",
+    "follow_up_later",
+    "low_priority",
+  ])
+  .transform((value) => {
+    const legacyMap: Record<string, "today" | "this_week" | "this_month" | "later" | "ignore"> = {
+      reply_now: "today",
+      reply_this_week: "this_week",
+      follow_up_later: "this_month",
+      low_priority: "later",
+      today: "today",
+      this_week: "this_week",
+      this_month: "this_month",
+      later: "later",
+      ignore: "ignore",
+    };
+    return legacyMap[value] ?? "later";
+  });
 const categorySchema = z.enum([
   "investor",
   "customer",

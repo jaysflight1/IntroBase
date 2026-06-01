@@ -10,26 +10,23 @@ const goals = {
 };
 
 describe("createFallbackAnalysis", () => {
-  it("keeps high priority count constrained for sample-sized batches", () => {
+  it("keeps today count constrained for sample-sized batches", () => {
     const result = createFallbackAnalysis(sampleInbox, goals);
 
-    const highPriorityCount = result.messages.filter(
-      (message) => message.priority === "high",
+    const todayCount = result.messages.filter(
+      (message) => message.urgency === "today",
     ).length;
 
-    expect(highPriorityCount).toBeLessThanOrEqual(7);
+    expect(todayCount).toBeLessThanOrEqual(7);
   });
 
-  it("spreads messages across all priority levels and board lanes", () => {
+  it("spreads messages across reply timing lanes", () => {
     const result = createFallbackAnalysis(sampleInbox, goals);
 
-    const priorities = new Set(result.messages.map((m) => m.priority));
-    expect(priorities).toEqual(new Set(["high", "medium", "low"]));
-
-    const lanes = new Set(result.messages.map((m) => m.urgency));
-    expect(lanes.has("reply_now")).toBe(true);
-    expect(lanes.has("reply_this_week")).toBe(true);
-    expect(lanes.has("follow_up_later")).toBe(true);
-    expect(lanes.has("low_priority")).toBe(true);
+    const lanes = new Set(result.messages.map((message) => message.urgency));
+    expect(lanes.has("today")).toBe(true);
+    expect(lanes.has("this_week")).toBe(true);
+    expect(lanes.has("this_month")).toBe(true);
+    expect(lanes.has("later")).toBe(true);
   });
 });
