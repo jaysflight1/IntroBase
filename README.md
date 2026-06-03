@@ -55,9 +55,19 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 
 `SUPABASE_SERVICE_ROLE_KEY` is only used in server route handlers. Raw pasted message text is not stored in Supabase by default; analyzed board data is stored locally in the browser.
 
+## Google sign-in
+
+Enable Google as an OAuth provider in Supabase Auth and add the local callback URL to the Supabase redirect allow list:
+
+```text
+http://localhost:3000/auth/callback
+```
+
+For production, also add the deployed `/auth/callback` URL. Gmail inbox access is a separate future consent step and is not requested during sign-in.
+
 ## Database
 
-Run `supabase/migrations/001_introbase_mvp.sql` against the Supabase project to create the MVP analytics tables.
+Run the SQL files in `supabase/migrations/` against the Supabase project to create the MVP analytics and auth profile tables.
 
 ## Scripts
 

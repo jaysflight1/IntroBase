@@ -2,7 +2,7 @@
 
 import type { JSX } from "react";
 import Link from "next/link";
-import { ArrowRight, PlayCircle } from "lucide-react";
+import { LogIn, PlayCircle } from "lucide-react";
 
 import { buttonVariants } from "@/components/ui/button";
 import { logEvent } from "@/lib/logEvent";
@@ -24,14 +24,14 @@ export function LandingActions({
       }
     >
       <Link
-        href="/app/import"
+        href="/login"
         className={cn(buttonVariants({ size: "lg" }), "gap-2")}
         onClick={() =>
-          void logEvent("clicked_cta", { cta: "try_pasted_messages" })
+          void logEvent("clicked_cta", { cta: "continue_with_google" })
         }
       >
-        Try with pasted messages
-        <ArrowRight className="size-4" />
+        Continue with Google
+        <LogIn className="size-4" />
       </Link>
       <Link
         href="/app/import?sample=1"
