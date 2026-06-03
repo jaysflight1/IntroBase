@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { mapUserToProfile } from "@/lib/auth/profile";
 import { sanitizeNextPath } from "@/lib/auth/redirects";
 import { createSupabaseServerAuthClient } from "@/lib/supabase/server-auth";
 
@@ -33,23 +34,7 @@ export async function GET(request: Request) {
   } = await supabase.auth.getUser();
 
   if (user) {
-    await supabase.from("profiles").upsert({
-      id: user.id,
-      email: user.email,
-      full_name:
-        typeof user.user_metadata.full_name === "string"
-          ? user.user_metadata.full_name
-          : typeof user.user_metadata.name === "string"
-            ? user.user_metadata.name
-            : null,
-      avatar_url:
-        typeof user.user_metadata.avatar_url === "string"
-          ? user.user_metadata.avatar_url
-          : typeof user.user_metadata.picture === "string"
-            ? user.user_metadata.picture
-            : null,
-      updated_at: new Date().toISOString(),
-    });
+    await supabase.from("profiles").upsert(mapUserToProfile(user));
   }
 
   return redirectTo(request, next);

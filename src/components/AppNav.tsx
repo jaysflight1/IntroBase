@@ -9,6 +9,7 @@ import {
   LogOut,
   MessageSquareText,
   Plug,
+  UserCircle,
   Users,
 } from "lucide-react";
 
@@ -22,6 +23,7 @@ const navItems = [
   { href: "/app/integrations", label: "Integrations", icon: Plug },
   { href: "/app/contacts", label: "Contacts", icon: Users },
   { href: "/app/followups", label: "Follow-ups", icon: Archive },
+  { href: "/app/account", label: "Account", icon: UserCircle },
 ];
 
 interface AppNavProps {
@@ -59,9 +61,12 @@ export function AppNav({ userEmail }: AppNavProps) {
           </nav>
           {userEmail ? (
             <div className="flex items-center gap-2">
-              <span className="max-w-48 truncate text-sm text-muted-foreground">
+              <Link
+                href="/app/account"
+                className="max-w-48 truncate text-sm text-muted-foreground hover:text-foreground"
+              >
                 {userEmail}
-              </span>
+              </Link>
               <form action="/auth/sign-out" method="post">
                 <Button variant="outline" type="submit">
                   <LogOut className="size-4" />
