@@ -111,7 +111,13 @@ async function getFreshAccessToken(
 
   const refreshed = await refreshGmailAccessToken(
     decryptToken(account.refresh_token_encrypted),
-  );
+  ).catch(async (error) => {
+    await markAccount(supabase, account.id, {
+      status: "reauth_required",
+      last_error: "Google access expired. Reconnect Gmail.",
+    });
+    throw error;
+  });
 
   await markAccount(supabase, account.id, {
     access_token_encrypted: encryptToken(refreshed.access_token),
@@ -306,10 +312,15 @@ export async function syncGmailAccount(
 
     return { importedCount: normalized.length, analyzedCount };
   } catch (error) {
+    const needsReconnect =
+      error instanceof Error && error.message.includes("token refresh");
+
     await markAccount(supabase, account.id, {
-      status: "sync_error",
+      status: needsReconnect ? "reauth_required" : "sync_error",
       last_error:
-        error instanceof Error
+        needsReconnect
+          ? "Google access expired. Reconnect Gmail."
+          : error instanceof Error
           ? error.message
           : "Gmail sync failed. Try reconnecting Gmail.",
     });

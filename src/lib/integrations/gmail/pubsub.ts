@@ -10,9 +10,15 @@ export function decodeGmailPubSubBody(payload: unknown) {
     return null;
   }
 
-  const decoded = JSON.parse(
-    Buffer.from(message.data, "base64").toString("utf8"),
-  ) as Partial<GmailPubSubNotification>;
+  let decoded: Partial<GmailPubSubNotification>;
+
+  try {
+    decoded = JSON.parse(
+      Buffer.from(message.data, "base64").toString("utf8"),
+    ) as Partial<GmailPubSubNotification>;
+  } catch {
+    return null;
+  }
 
   if (!decoded.emailAddress || !decoded.historyId) {
     return null;

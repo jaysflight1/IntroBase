@@ -20,5 +20,6 @@ describe("decodeGmailPubSubBody", () => {
 
   it("rejects malformed payloads", () => {
     expect(decodeGmailPubSubBody({ message: {} })).toBeNull();
+    expect(decodeGmailPubSubBody({ message: { data: "not-json" } })).toBeNull();
   });
 });
