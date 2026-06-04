@@ -45,6 +45,11 @@ NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
 
+TOKEN_ENCRYPTION_KEY=
+OAUTH_STATE_SECRET=
+GOOGLE_GMAIL_CLIENT_ID=
+GOOGLE_GMAIL_CLIENT_SECRET=
+
 OPENAI_API_KEY=
 # or ANTHROPIC_API_KEY=
 
@@ -64,6 +69,16 @@ http://localhost:3000/auth/callback
 ```
 
 For production, also add the deployed `/auth/callback` URL. Gmail inbox access is a separate future consent step and is not requested during sign-in.
+
+## Gmail integration
+
+Create a separate Google OAuth client for Gmail read-only access and add this callback URL:
+
+```text
+http://localhost:3000/api/integrations/gmail/callback
+```
+
+The Gmail integration uses only `https://www.googleapis.com/auth/gmail.readonly`. `TOKEN_ENCRYPTION_KEY` encrypts OAuth tokens before storage, and `OAUTH_STATE_SECRET` signs short-lived OAuth state values.
 
 ## Database
 
