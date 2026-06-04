@@ -1,15 +1,8 @@
 import { NextResponse } from "next/server";
 
-import {
-  analysisResultSchema,
-  analyzePayloadSchema,
-} from "@/lib/apiSchemas";
-import { createFallbackAnalysis } from "@/lib/analysis/fallback";
-import { migrateAnalysisResult } from "@/lib/replyTiming";
-import { normalizeSourceValue } from "@/lib/normalizeSource";
+import { analyzePayloadSchema } from "@/lib/apiSchemas";
+import { ANALYSIS_MODEL, analyzeRawMessages } from "@/lib/analysis/run";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
-
-const MODEL = "gpt-4.1-mini";
 
 async function logServerEvent(
   eventName: string,
@@ -43,47 +36,6 @@ async function isRateLimited(anonymousUserId: string) {
   return (count ?? 0) >= 5;
 }
 
-async function analyzeWithOpenAI(rawMessages: string, userGoals: unknown) {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return null;
-
-  const response = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: MODEL,
-      temperature: 0.2,
-      response_format: { type: "json_object" },
-      messages: [
-        {
-          role: "system",
-          content:
-            "You are Introbase, an AI system that turns messy pasted inbound messages into a structured reply inbox for founders and busy builders. Assign each message exactly one urgency timing: today (reply today), this_week (reply this week), this_month (reply this month), later (low urgency), or ignore. Also set priority to match timing: today=high, this_week=medium, this_month=medium, later=low, ignore=low. Prioritize opportunity value, time sensitivity, relationship importance, specific asks or deadlines, and relevance to the user's goals. Do not over-rank generic spam, newsletters, vague sales pitches, or low-effort messages. Use today sparingly: for a normal 10-20 message batch, aim for roughly 5-7 today items unless true urgency clearly requires more. Return valid JSON only matching this shape: { messages: [...], contacts: [...], sourceTypes: string[], categoryCounts: {}, messageCount: number }.",
-        },
-        {
-          role: "user",
-          content: `User goals:\n${JSON.stringify(userGoals)}\n\nRaw pasted messages:\n${rawMessages}`,
-        },
-      ],
-    }),
-  });
-
-  if (!response.ok) {
-    throw new Error("LLM request failed");
-  }
-
-  const payload = (await response.json()) as {
-    choices?: { message?: { content?: string } }[];
-  };
-  const content = payload.choices?.[0]?.message?.content;
-  if (!content) throw new Error("LLM response was empty");
-
-  return JSON.parse(content) as unknown;
-}
-
 export async function POST(request: Request) {
   const parsed = analyzePayloadSchema.safeParse(
     await request.json().catch(() => null),
@@ -107,31 +59,8 @@ export async function POST(request: Request) {
   }
 
   try {
-    const llmResult = await analyzeWithOpenAI(raw_messages, user_goals).catch(
-      () => null,
-    );
-    const fallback = createFallbackAnalysis(raw_messages, user_goals);
-    const result = analysisResultSchema.parse(llmResult ?? fallback);
-    const messages = result.messages.slice(0, 50).map((message) => ({
-      ...message,
-      source: normalizeSourceValue(message.source),
-    }));
-    const categoryCounts = messages.reduce<Record<string, number>>(
-      (counts, message) => {
-        counts[message.category] = (counts[message.category] ?? 0) + 1;
-        return counts;
-      },
-      {},
-    );
-    const normalized = migrateAnalysisResult({
-      ...result,
-      messages,
-      categoryCounts,
-      messageCount: messages.length,
-      sourceTypes: Array.from(
-        new Set(messages.map((message) => message.source).filter(Boolean)),
-      ),
-    });
+    const normalized = await analyzeRawMessages(raw_messages, user_goals);
+    const messages = normalized.messages;
 
     const priorityCounts = messages.reduce(
       (counts, message) => {
@@ -152,7 +81,9 @@ export async function POST(request: Request) {
         high_priority_count: priorityCounts.high,
         medium_priority_count: priorityCounts.medium,
         low_priority_count: priorityCounts.low,
-        analysis_model: process.env.OPENAI_API_KEY ? MODEL : "local_fallback",
+        analysis_model: process.env.OPENAI_API_KEY
+          ? ANALYSIS_MODEL
+          : "local_fallback",
       });
     }
 

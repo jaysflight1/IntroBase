@@ -73,6 +73,53 @@ export default function BoardPage() {
     void logEvent("viewed_board");
   }, []);
 
+  useEffect(() => {
+    let active = true;
+
+    async function loadServerBoard() {
+      const response = await fetch("/api/board");
+      if (!response.ok) return;
+
+      const serverAnalysis = migrateAnalysisResult(
+        (await response.json()) as AnalysisResult,
+      );
+
+      if (!active || serverAnalysis.messageCount === 0) return;
+
+      setAnalysis((current) => {
+        if (!current) return serverAnalysis;
+
+        const existingIds = new Set(
+          current.messages.map((message) => message.id),
+        );
+        const mergedMessages = [
+          ...serverAnalysis.messages.filter(
+            (message) => !existingIds.has(message.id),
+          ),
+          ...current.messages,
+        ];
+
+        return {
+          ...current,
+          messages: mergedMessages,
+          messageCount: mergedMessages.length,
+          sourceTypes: Array.from(
+            new Set([
+              ...current.sourceTypes,
+              ...serverAnalysis.sourceTypes,
+            ]),
+          ),
+        };
+      });
+    }
+
+    void loadServerBoard();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const messages = useMemo(() => analysis?.messages ?? [], [analysis]);
   const grouped = useMemo(
     () =>

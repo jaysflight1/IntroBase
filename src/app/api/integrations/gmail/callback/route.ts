@@ -6,6 +6,7 @@ import {
   fetchGmailProfile,
   GMAIL_READONLY_SCOPE,
 } from "@/lib/integrations/gmail/oauth";
+import { syncPrimaryGmailAccount } from "@/lib/integrations/gmail/sync";
 import { verifyOAuthState } from "@/lib/integrations/oauthState";
 import { encryptToken } from "@/lib/security/tokenCrypto";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
@@ -95,9 +96,16 @@ export async function GET(request: Request) {
       throw upsertError;
     }
 
+    let status = "connected";
+    try {
+      await syncPrimaryGmailAccount(supabase, user.id);
+    } catch {
+      status = "sync_failed";
+    }
+
     return redirectTo(
       request,
-      withStatusParam(sanitizeNextPath(verifiedState.nextPath), "connected"),
+      withStatusParam(sanitizeNextPath(verifiedState.nextPath), status),
     );
   } catch {
     return redirectTo(request, "/app/integrations?gmail=connect_failed");
