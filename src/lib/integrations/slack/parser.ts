@@ -72,6 +72,7 @@ export function normalizeSlackMessage(input: {
   const conversationType = getSlackConversationType(input.conversation);
   const conversationLabel = getSlackConversationLabel(input.conversation);
   const senderName = getSlackSenderName(input.sender, input.event);
+  const seconds = Number(input.event.ts.split(".")[0]);
 
   return {
     userId: input.userId,
@@ -96,7 +97,9 @@ export function normalizeSlackMessage(input: {
       slackThreadTs: input.event.thread_ts ?? "",
     },
     bodyText: input.event.text?.trim().slice(0, MAX_TEXT_CHARS) ?? "",
-    receivedAt: new Date(Number(input.event.ts.split(".")[0]) * 1000).toISOString(),
+    receivedAt: Number.isFinite(seconds)
+      ? new Date(seconds * 1000).toISOString()
+      : new Date().toISOString(),
     rawMetadata: {
       subtype: input.event.subtype ?? "",
       truncated: (input.event.text?.length ?? 0) > MAX_TEXT_CHARS,

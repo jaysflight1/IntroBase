@@ -36,12 +36,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const payload = JSON.parse(rawBody) as {
+  let payload: {
     type?: string;
     challenge?: string;
     team_id?: string;
     event?: unknown;
-  };
+  } | null;
+
+  try {
+    payload = JSON.parse(rawBody) as typeof payload;
+  } catch {
+    payload = null;
+  }
+
+  if (!payload) {
+    return NextResponse.json({ ok: true, skipped: "invalid_payload" });
+  }
 
   if (payload.type === "url_verification" && payload.challenge) {
     return NextResponse.json({ challenge: payload.challenge });

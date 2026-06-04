@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { sanitizeNextPath } from "@/lib/auth/redirects";
 import { verifyOAuthState } from "@/lib/integrations/oauthState";
 import { exchangeSlackCode } from "@/lib/integrations/slack/oauth";
+import { syncPrimarySlackAccount } from "@/lib/integrations/slack/sync";
 import { encryptToken } from "@/lib/security/tokenCrypto";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/supabase/server-auth";
@@ -89,9 +90,16 @@ export async function GET(request: Request) {
       throw upsertError;
     }
 
+    let status = "connected";
+    try {
+      await syncPrimarySlackAccount(supabase, user.id);
+    } catch {
+      status = "sync_failed";
+    }
+
     return redirectTo(
       request,
-      withStatusParam(sanitizeNextPath(verifiedState.nextPath), "connected"),
+      withStatusParam(sanitizeNextPath(verifiedState.nextPath), status),
     );
   } catch {
     return redirectTo(request, "/app/integrations?slack=connect_failed");

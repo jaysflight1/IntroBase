@@ -67,4 +67,24 @@ describe("slack parser", () => {
       },
     });
   });
+
+  it("does not throw on malformed Slack timestamps", () => {
+    expect(
+      normalizeSlackMessage({
+        userId: "user-1",
+        connectedAccountId: "account-1",
+        workspaceId: "T1",
+        workspaceName: "Acme",
+        event: {
+          type: "message",
+          channel: "D1",
+          user: "U1",
+          text: "hello",
+          ts: "not-a-ts",
+        },
+        conversation: { id: "D1", is_im: true },
+        sender: null,
+      })?.receivedAt,
+    ).toBeTruthy();
+  });
 });
