@@ -1,7 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { analyzeRawMessages } from "@/lib/analysis/run";
-import { getGmailMessage, listRecentInboxMessageIds } from "@/lib/integrations/gmail/api";
+import {
+  getGmailMessage,
+  listRecentInboxMessageIds,
+  watchGmailInbox,
+} from "@/lib/integrations/gmail/api";
 import { normalizeGmailMessage } from "@/lib/integrations/gmail/parser";
 import { refreshGmailAccessToken } from "@/lib/integrations/gmail/oauth";
 import { decryptToken, encryptToken } from "@/lib/security/tokenCrypto";
@@ -275,6 +279,24 @@ export async function syncGmailAccount(
 
     await insertNormalizedMessages(supabase, normalized);
     const analyzedCount = await analyzePendingMessages(supabase, account);
+    const watch = await watchGmailInbox(accessToken).catch(() => null);
+
+    if (watch?.historyId) {
+      await supabase.from("sync_cursors").upsert(
+        {
+          connected_account_id: account.id,
+          provider: "gmail",
+          cursor_type: "gmail_history_id",
+          cursor_value: watch.historyId,
+          expires_at: watch.expiration
+            ? new Date(Number(watch.expiration)).toISOString()
+            : null,
+          metadata: { watchRegisteredAt: new Date().toISOString() },
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "connected_account_id,cursor_type" },
+      );
+    }
 
     await markAccount(supabase, account.id, {
       status: "connected",

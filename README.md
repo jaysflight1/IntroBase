@@ -49,6 +49,8 @@ TOKEN_ENCRYPTION_KEY=
 OAUTH_STATE_SECRET=
 GOOGLE_GMAIL_CLIENT_ID=
 GOOGLE_GMAIL_CLIENT_SECRET=
+GOOGLE_GMAIL_PUBSUB_TOPIC=
+GMAIL_PUBSUB_WEBHOOK_TOKEN=
 
 OPENAI_API_KEY=
 # or ANTHROPIC_API_KEY=
@@ -79,6 +81,8 @@ http://localhost:3000/api/integrations/gmail/callback
 ```
 
 The Gmail integration uses only `https://www.googleapis.com/auth/gmail.readonly`. `TOKEN_ENCRYPTION_KEY` encrypts OAuth tokens before storage, and `OAUTH_STATE_SECRET` signs short-lived OAuth state values.
+
+For automatic updates, configure a Google Cloud Pub/Sub topic in `GOOGLE_GMAIL_PUBSUB_TOPIC` and point the push subscription to `/api/webhooks/gmail/pubsub`. If `GMAIL_PUBSUB_WEBHOOK_TOKEN` is set, include it as `?token=...` on the push endpoint.
 
 ## Database
 

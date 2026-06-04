@@ -39,3 +39,32 @@ export async function getGmailMessage(accessToken: string, messageId: string) {
     `/messages/${encodeURIComponent(messageId)}?${params.toString()}`,
   );
 }
+
+export async function watchGmailInbox(accessToken: string) {
+  const topicName = process.env.GOOGLE_GMAIL_PUBSUB_TOPIC;
+
+  if (!topicName) {
+    return null;
+  }
+
+  const response = await fetch(`${GMAIL_API_BASE}/watch`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      topicName,
+      labelIds: ["INBOX"],
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error("Gmail watch registration failed");
+  }
+
+  return (await response.json()) as {
+    historyId?: string;
+    expiration?: string;
+  };
+}
