@@ -1,11 +1,5 @@
 import Link from "next/link";
-import {
-  Inbox,
-  Loader2,
-  MessageSquareText,
-  RefreshCw,
-  Unplug,
-} from "lucide-react";
+import { Inbox, MessageSquareText, RefreshCw, Unplug } from "lucide-react";
 
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -19,21 +13,15 @@ import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/supabase/server-auth";
 import { cn } from "@/lib/utils";
 
-interface GmailAccountRow {
+interface ConnectedAccountRow {
   provider_account_email: string | null;
+  workspace_name: string | null;
   status: string;
   last_successful_sync_at: string | null;
   last_error: string | null;
 }
 
-const slackIntegration = {
-  title: "Slack",
-  description:
-    "Workspace sync will import authorized messages with channel and DM context.",
-  icon: MessageSquareText,
-};
-
-const statusMessages: Record<string, string> = {
+const gmailStatusMessages: Record<string, string> = {
   connected: "Gmail connected. Syncing your latest emails can start now.",
   cancelled: "Gmail connection was cancelled.",
   invalid_callback: "Google returned an incomplete Gmail callback.",
@@ -49,21 +37,35 @@ const statusMessages: Record<string, string> = {
   sync_failed: "Gmail sync failed. Try reconnecting Gmail.",
 };
 
-async function getGmailAccount(userId: string) {
+const slackStatusMessages: Record<string, string> = {
+  connected: "Slack connected. Run a sync to import authorized messages.",
+  cancelled: "Slack connection was cancelled.",
+  invalid_callback: "Slack returned an incomplete callback.",
+  invalid_state: "Slack connection expired. Try connecting again.",
+  connect_failed: "Introbase could not connect Slack. Try again.",
+  disconnected: "Slack disconnected.",
+  not_connected: "Connect Slack before syncing.",
+  not_configured: "Slack OAuth is not configured for this environment.",
+  storage_not_configured: "Supabase storage is not configured.",
+  synced: "Slack sync finished. New priority messages are on your board.",
+  sync_failed: "Slack sync failed. Check permissions or reconnect Slack.",
+};
+
+async function getConnectedAccount(userId: string, provider: "gmail" | "slack") {
   const supabase = getSupabaseAdmin();
   if (!supabase) return null;
 
   const { data } = await supabase
     .from("connected_accounts")
     .select(
-      "provider_account_email, status, last_successful_sync_at, last_error",
+      "provider_account_email, workspace_name, status, last_successful_sync_at, last_error",
     )
     .eq("user_id", userId)
-    .eq("provider", "gmail")
+    .eq("provider", provider)
     .neq("status", "disconnected")
     .order("updated_at", { ascending: false })
     .limit(1)
-    .maybeSingle<GmailAccountRow>();
+    .maybeSingle<ConnectedAccountRow>();
 
   return data;
 }
@@ -71,13 +73,12 @@ async function getGmailAccount(userId: string) {
 export default async function IntegrationsPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ gmail?: string }>;
+  searchParams?: Promise<{ gmail?: string; slack?: string }>;
 }) {
   const user = await getCurrentUser();
   const params = await searchParams;
-  const gmailAccount = user ? await getGmailAccount(user.id) : null;
-  const gmailStatus = params?.gmail;
-  const SlackIcon = slackIntegration.icon;
+  const gmailAccount = user ? await getConnectedAccount(user.id, "gmail") : null;
+  const slackAccount = user ? await getConnectedAccount(user.id, "slack") : null;
 
   return (
     <div className="space-y-6">
@@ -86,14 +87,20 @@ export default async function IntegrationsPage({
           Connect your inboxes
         </h1>
         <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-          Start with sign-in now. Gmail and Slack connection controls will live
-          here as read-only integrations.
+          Connect Gmail and Slack read-only. Introbase imports authorized
+          messages and adds prioritized items to your board.
         </p>
       </div>
 
-      {gmailStatus ? (
+      {params?.gmail ? (
         <div className="rounded-lg border border-primary/20 bg-primary/10 px-4 py-3 text-sm text-primary">
-          {statusMessages[gmailStatus] ?? "Gmail status updated."}
+          {gmailStatusMessages[params.gmail] ?? "Gmail status updated."}
+        </div>
+      ) : null}
+
+      {params?.slack ? (
+        <div className="rounded-lg border border-primary/20 bg-primary/10 px-4 py-3 text-sm text-primary">
+          {slackStatusMessages[params.slack] ?? "Slack status updated."}
         </div>
       ) : null}
 
@@ -174,16 +181,73 @@ export default async function IntegrationsPage({
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <SlackIcon className="size-5" />
-              {slackIntegration.title}
+              <MessageSquareText className="size-5" />
+              Slack
             </CardTitle>
-            <CardDescription>{slackIntegration.description}</CardDescription>
+            <CardDescription>
+              Workspace sync imports authorized messages with channel and DM
+              context.
+            </CardDescription>
           </CardHeader>
-          <CardContent>
-            <Button variant="outline" disabled>
-              <Loader2 className="size-4" />
-              Coming next
-            </Button>
+          <CardContent className="space-y-4">
+            {slackAccount ? (
+              <div className="rounded-lg border border-border/80 bg-muted/30 p-3 text-sm">
+                <p className="font-medium">
+                  {slackAccount.workspace_name ?? "Slack connected"}
+                </p>
+                <p className="mt-1 text-muted-foreground">
+                  Status: {slackAccount.status.replaceAll("_", " ")}
+                </p>
+                {slackAccount.last_successful_sync_at ? (
+                  <p className="mt-1 text-muted-foreground">
+                    Last sync:{" "}
+                    {new Date(
+                      slackAccount.last_successful_sync_at,
+                    ).toLocaleString()}
+                  </p>
+                ) : null}
+                {slackAccount.last_error ? (
+                  <p className="mt-2 text-destructive">
+                    {slackAccount.last_error}
+                  </p>
+                ) : null}
+              </div>
+            ) : (
+              <p className="text-sm leading-6 text-muted-foreground">
+                Read-only. Introbase can only analyze conversations your Slack
+                app installation is allowed to access.
+              </p>
+            )}
+
+            <div className="flex flex-col gap-2 sm:flex-row">
+              {slackAccount ? (
+                <>
+                  <form action="/api/integrations/slack/sync-now" method="post">
+                    <Button type="submit">
+                      <RefreshCw className="size-4" />
+                      Sync now
+                    </Button>
+                  </form>
+                  <form
+                    action="/api/integrations/slack/disconnect"
+                    method="post"
+                  >
+                    <Button type="submit" variant="outline">
+                      <Unplug className="size-4" />
+                      Disconnect
+                    </Button>
+                  </form>
+                </>
+              ) : (
+                <Link
+                  href="/api/integrations/slack/connect"
+                  className={cn(buttonVariants(), "gap-2")}
+                >
+                  <MessageSquareText className="size-4" />
+                  Connect Slack
+                </Link>
+              )}
+            </div>
           </CardContent>
         </Card>
       </div>

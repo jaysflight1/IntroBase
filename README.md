@@ -52,6 +52,10 @@ GOOGLE_GMAIL_CLIENT_SECRET=
 GOOGLE_GMAIL_PUBSUB_TOPIC=
 GMAIL_PUBSUB_WEBHOOK_TOKEN=
 
+SLACK_CLIENT_ID=
+SLACK_CLIENT_SECRET=
+SLACK_SIGNING_SECRET=
+
 OPENAI_API_KEY=
 # or ANTHROPIC_API_KEY=
 
@@ -83,6 +87,16 @@ http://localhost:3000/api/integrations/gmail/callback
 The Gmail integration uses only `https://www.googleapis.com/auth/gmail.readonly`. `TOKEN_ENCRYPTION_KEY` encrypts OAuth tokens before storage, and `OAUTH_STATE_SECRET` signs short-lived OAuth state values.
 
 For automatic updates, configure a Google Cloud Pub/Sub topic in `GOOGLE_GMAIL_PUBSUB_TOPIC` and point the push subscription to `/api/webhooks/gmail/pubsub`. If `GMAIL_PUBSUB_WEBHOOK_TOKEN` is set, include it as `?token=...` on the push endpoint.
+
+## Slack integration
+
+Create a Slack app with OAuth v2 and add this redirect URL:
+
+```text
+http://localhost:3000/api/integrations/slack/callback
+```
+
+The current Slack integration requests read-only scopes only and does not request `chat:write`. Set the Slack app's event request URL to `/api/webhooks/slack/events` when enabling automatic message events.
 
 ## Database
 

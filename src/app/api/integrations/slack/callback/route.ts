@@ -1,0 +1,99 @@
+import { NextResponse } from "next/server";
+
+import { sanitizeNextPath } from "@/lib/auth/redirects";
+import { verifyOAuthState } from "@/lib/integrations/oauthState";
+import { exchangeSlackCode } from "@/lib/integrations/slack/oauth";
+import { encryptToken } from "@/lib/security/tokenCrypto";
+import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/supabase/server-auth";
+
+function redirectTo(request: Request, path: string) {
+  return NextResponse.redirect(new URL(path, request.url));
+}
+
+function withStatusParam(path: string, status: string) {
+  const url = new URL(path, "https://introbase.local");
+  url.searchParams.set("slack", status);
+  return `${url.pathname}${url.search}${url.hash}`;
+}
+
+export async function GET(request: Request) {
+  const requestUrl = new URL(request.url);
+  const code = requestUrl.searchParams.get("code");
+  const state = requestUrl.searchParams.get("state");
+  const error = requestUrl.searchParams.get("error");
+  const user = await getCurrentUser();
+
+  if (!user) {
+    return redirectTo(request, "/login?next=/app/integrations");
+  }
+
+  if (error) {
+    return redirectTo(request, "/app/integrations?slack=cancelled");
+  }
+
+  if (!code || !state) {
+    return redirectTo(request, "/app/integrations?slack=invalid_callback");
+  }
+
+  const verifiedState = verifyOAuthState(state, user.id);
+
+  if (!verifiedState) {
+    return redirectTo(request, "/app/integrations?slack=invalid_state");
+  }
+
+  const supabase = getSupabaseAdmin();
+
+  if (!supabase) {
+    return redirectTo(request, "/app/integrations?slack=storage_not_configured");
+  }
+
+  try {
+    const token = await exchangeSlackCode(code);
+    const teamId = token.team?.id;
+    const teamName = token.team?.name || "Slack workspace";
+
+    if (!teamId || !token.access_token) {
+      return redirectTo(request, "/app/integrations?slack=connect_failed");
+    }
+
+    const { error: upsertError } = await supabase
+      .from("connected_accounts")
+      .upsert(
+        {
+          user_id: user.id,
+          provider: "slack",
+          provider_account_id: teamId,
+          provider_account_email: "",
+          display_name: teamName,
+          workspace_name: teamName,
+          workspace_id: teamId,
+          access_token_encrypted: encryptToken(token.access_token),
+          refresh_token_encrypted: null,
+          token_expires_at: null,
+          scopes: token.scope ? token.scope.split(",") : [],
+          status: "connected",
+          last_error: null,
+          metadata: {
+            botUserId: token.bot_user_id ?? "",
+            authedUserId: token.authed_user?.id ?? "",
+          },
+          updated_at: new Date().toISOString(),
+        },
+        {
+          onConflict: "user_id,provider,provider_account_id",
+        },
+      );
+
+    if (upsertError) {
+      throw upsertError;
+    }
+
+    return redirectTo(
+      request,
+      withStatusParam(sanitizeNextPath(verifiedState.nextPath), "connected"),
+    );
+  } catch {
+    return redirectTo(request, "/app/integrations?slack=connect_failed");
+  }
+}
