@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { decodeGmailPubSubBody } from "@/lib/integrations/gmail/pubsub";
-import { syncGmailAccount } from "@/lib/integrations/gmail/sync";
+import { enqueueSyncJob } from "@/lib/integrations/syncJobs";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 
 interface ConnectedAccountRow {
@@ -49,7 +49,16 @@ export async function POST(request: Request) {
     .returns<ConnectedAccountRow[]>();
 
   for (const account of accounts ?? []) {
-    await syncGmailAccount(supabase, account).catch(() => null);
+    await enqueueSyncJob(supabase, {
+      userId: account.user_id,
+      connectedAccountId: account.id,
+      provider: "gmail",
+      jobType: "gmail_incremental_sync",
+      payload: {
+        historyId: notification.historyId,
+        emailAddress: notification.emailAddress,
+      },
+    }).catch(() => null);
   }
 
   return NextResponse.json({

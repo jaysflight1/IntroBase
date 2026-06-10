@@ -2,13 +2,23 @@ import type { GmailMessage } from "@/lib/integrations/gmail/types";
 
 const GMAIL_API_BASE = "https://gmail.googleapis.com/gmail/v1/users/me";
 
+export class GmailApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+    this.name = "GmailApiError";
+  }
+}
+
 async function gmailFetch<T>(accessToken: string, path: string) {
   const response = await fetch(`${GMAIL_API_BASE}${path}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
 
   if (!response.ok) {
-    throw new Error("Gmail API request failed");
+    throw new GmailApiError("Gmail API request failed", response.status);
   }
 
   return (await response.json()) as T;
@@ -27,6 +37,58 @@ export async function listRecentInboxMessageIds(accessToken: string) {
   }>(accessToken, `/messages?${params.toString()}`);
 
   return payload.messages?.map((message) => message.id).slice(0, 25) ?? [];
+}
+
+export async function listInboxHistoryMessageIds(
+  accessToken: string,
+  startHistoryId: string,
+) {
+  const messageIds = new Set<string>();
+  let nextPageToken: string | undefined;
+  let latestHistoryId = startHistoryId;
+
+  do {
+    const params = new URLSearchParams({
+      startHistoryId,
+      historyTypes: "messageAdded",
+      labelId: "INBOX",
+    });
+
+    if (nextPageToken) {
+      params.set("pageToken", nextPageToken);
+    }
+
+    const payload = await gmailFetch<{
+      history?: {
+        id?: string;
+        messagesAdded?: { message?: { id?: string; labelIds?: string[] } }[];
+      }[];
+      historyId?: string;
+      nextPageToken?: string;
+    }>(accessToken, `/history?${params.toString()}`);
+
+    for (const history of payload.history ?? []) {
+      if (history.id) {
+        latestHistoryId = history.id;
+      }
+
+      for (const added of history.messagesAdded ?? []) {
+        const message = added.message;
+
+        if (message?.id && message.labelIds?.includes("INBOX")) {
+          messageIds.add(message.id);
+        }
+      }
+    }
+
+    latestHistoryId = payload.historyId ?? latestHistoryId;
+    nextPageToken = payload.nextPageToken;
+  } while (nextPageToken && messageIds.size < 50);
+
+  return {
+    messageIds: Array.from(messageIds).slice(0, 50),
+    historyId: latestHistoryId,
+  };
 }
 
 export async function getGmailMessage(accessToken: string, messageId: string) {

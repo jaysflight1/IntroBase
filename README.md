@@ -89,6 +89,7 @@ The app is built as a privacy-conscious beta: manual pasted message analysis kee
 - `/api/integrations/slack/*` - Slack connect, callback, sync-now, and disconnect routes.
 - `/api/webhooks/gmail/pubsub` - optional Gmail Pub/Sub push endpoint.
 - `/api/webhooks/slack/events` - Slack Events API endpoint with challenge and signature handling.
+- `/api/cron/*` - protected cron endpoints for queued sync processing, Gmail watch renewal, and fallback polling.
 
 ## Data and Storage Model
 
@@ -105,6 +106,7 @@ Supabase is used for:
 - Integration-imported source messages.
 - Integration-generated analyzed messages.
 - Sync cursors and account sync state.
+- Durable sync jobs for webhook-triggered and fallback processing.
 
 OAuth tokens are encrypted before storage with `TOKEN_ENCRYPTION_KEY`. Row-level security policies are enabled for user-owned profile and integration tables.
 
@@ -155,6 +157,7 @@ Run the SQL migrations in order against the Supabase project:
 supabase/migrations/001_introbase_mvp.sql
 supabase/migrations/002_profiles_auth.sql
 supabase/migrations/003_gmail_integration.sql
+supabase/migrations/004_sync_jobs.sql
 ```
 
 Enable Google as an OAuth provider in Supabase Auth and add the local callback URL to the redirect allow list:
@@ -188,6 +191,8 @@ http://localhost:3000/api/webhooks/gmail/pubsub
 ```
 
 If `GMAIL_PUBSUB_WEBHOOK_TOKEN` is set, include it as `?token=...` on the push endpoint.
+
+Production automatic sync uses `vercel.json` cron schedules. Set `CRON_SECRET` in the deployment environment so Vercel cron requests include the expected bearer token for `/api/cron/process-sync-jobs`, `/api/cron/gmail-watch-renewal`, and `/api/cron/fallback-poll`.
 
 ## Slack Integration
 

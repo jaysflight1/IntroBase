@@ -1,6 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { syncGmailAccount } from "@/lib/integrations/gmail/sync";
+import {
+  syncGmailAccount,
+  syncGmailIncrementalAccount,
+  type GmailConnectedAccountRow,
+} from "@/lib/integrations/gmail/sync";
 import { syncSlackAccount } from "@/lib/integrations/slack/sync";
 
 const MAX_ATTEMPTS = 5;
@@ -22,14 +26,6 @@ interface SyncJobRow {
   job_type: SyncJobType;
   attempt_count: number;
   payload: Record<string, unknown>;
-}
-
-interface GmailAccountRow {
-  id: string;
-  user_id: string;
-  provider_account_email: string | null;
-  refresh_token_encrypted: string | null;
-  status: string;
 }
 
 interface SlackAccountRow {
@@ -144,7 +140,7 @@ async function getGmailAccount(supabase: SupabaseClient, accountId: string) {
     .select("id, user_id, provider_account_email, refresh_token_encrypted, status")
     .eq("id", accountId)
     .eq("provider", "gmail")
-    .maybeSingle<GmailAccountRow>();
+    .maybeSingle<GmailConnectedAccountRow>();
 
   if (error) throw error;
   return data;
@@ -170,6 +166,14 @@ async function processJob(supabase: SupabaseClient, job: SyncJobRow) {
   if (job.provider === "gmail") {
     const account = await getGmailAccount(supabase, job.connected_account_id);
     if (!account) throw new Error("Gmail account not found");
+
+    if (job.job_type === "gmail_incremental_sync") {
+      const historyId =
+        typeof job.payload.historyId === "string" ? job.payload.historyId : null;
+      await syncGmailIncrementalAccount(supabase, account, historyId);
+      return;
+    }
+
     await syncGmailAccount(supabase, account);
     return;
   }

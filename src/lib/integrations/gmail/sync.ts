@@ -2,7 +2,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { analyzeRawMessages } from "@/lib/analysis/run";
 import {
+  GmailApiError,
   getGmailMessage,
+  listInboxHistoryMessageIds,
   listRecentInboxMessageIds,
   watchGmailInbox,
 } from "@/lib/integrations/gmail/api";
@@ -22,7 +24,7 @@ const DEFAULT_GOALS: UserGoals = {
   context: "I am a founder/builder trying to avoid missing important opportunities.",
 };
 
-interface ConnectedAccountRow {
+export interface GmailConnectedAccountRow {
   id: string;
   user_id: string;
   provider_account_email: string | null;
@@ -99,7 +101,7 @@ async function markAccount(
 
 async function getFreshAccessToken(
   supabase: SupabaseClient,
-  account: ConnectedAccountRow,
+  account: GmailConnectedAccountRow,
 ) {
   if (!account.refresh_token_encrypted) {
     await markAccount(supabase, account.id, {
@@ -164,7 +166,7 @@ async function insertNormalizedMessages(
 
 async function analyzePendingMessages(
   supabase: SupabaseClient,
-  account: ConnectedAccountRow,
+  account: GmailConnectedAccountRow,
 ) {
   const { data: pending, error } = await supabase
     .from("source_messages")
@@ -253,9 +255,101 @@ async function analyzePendingMessages(
   }
 }
 
+async function upsertHistoryCursor(
+  supabase: SupabaseClient,
+  accountId: string,
+  historyId: string,
+  expiresAt?: string | null,
+) {
+  await supabase.from("sync_cursors").upsert(
+    {
+      connected_account_id: accountId,
+      provider: "gmail",
+      cursor_type: "gmail_history_id",
+      cursor_value: historyId,
+      expires_at: expiresAt ?? null,
+      metadata: { updatedBy: "gmail_sync", updatedAt: new Date().toISOString() },
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "connected_account_id,cursor_type" },
+  );
+}
+
+async function getHistoryCursor(
+  supabase: SupabaseClient,
+  accountId: string,
+) {
+  const { data, error } = await supabase
+    .from("sync_cursors")
+    .select("cursor_value")
+    .eq("connected_account_id", accountId)
+    .eq("cursor_type", "gmail_history_id")
+    .maybeSingle<{ cursor_value: string }>();
+
+  if (error) {
+    throw error;
+  }
+
+  return data?.cursor_value ?? null;
+}
+
+async function importAndAnalyzeMessages(
+  supabase: SupabaseClient,
+  account: GmailConnectedAccountRow,
+  accessToken: string,
+  messageIds: string[],
+) {
+  const accountEmail = account.provider_account_email ?? "Gmail";
+  const gmailMessages = await Promise.all(
+    messageIds.map((id) => getGmailMessage(accessToken, id)),
+  );
+
+  const normalized = gmailMessages.map((message) =>
+    normalizeGmailMessage({
+      userId: account.user_id,
+      connectedAccountId: account.id,
+      accountEmail,
+      message,
+    }),
+  );
+
+  await insertNormalizedMessages(supabase, normalized);
+  const analyzedCount = await analyzePendingMessages(supabase, account);
+
+  return { importedCount: normalized.length, analyzedCount };
+}
+
+export async function renewGmailWatchForAccount(
+  supabase: SupabaseClient,
+  account: GmailConnectedAccountRow,
+) {
+  if (account.status === "disconnected") {
+    return { renewed: false };
+  }
+
+  const accessToken = await getFreshAccessToken(supabase, account);
+  const watch = await watchGmailInbox(accessToken);
+
+  if (watch?.historyId) {
+    await upsertHistoryCursor(
+      supabase,
+      account.id,
+      watch.historyId,
+      watch.expiration ? new Date(Number(watch.expiration)).toISOString() : null,
+    );
+  }
+
+  await markAccount(supabase, account.id, {
+    status: "connected",
+    last_error: null,
+  });
+
+  return { renewed: true, historyId: watch?.historyId ?? null };
+}
+
 export async function syncGmailAccount(
   supabase: SupabaseClient,
-  account: ConnectedAccountRow,
+  account: GmailConnectedAccountRow,
 ) {
   if (account.status === "disconnected") {
     return { importedCount: 0, analyzedCount: 0 };
@@ -268,39 +362,21 @@ export async function syncGmailAccount(
     });
 
     const accessToken = await getFreshAccessToken(supabase, account);
-    const accountEmail = account.provider_account_email ?? "Gmail";
     const messageIds = await listRecentInboxMessageIds(accessToken);
-    const gmailMessages = await Promise.all(
-      messageIds.map((id) => getGmailMessage(accessToken, id)),
+    const result = await importAndAnalyzeMessages(
+      supabase,
+      account,
+      accessToken,
+      messageIds,
     );
-
-    const normalized = gmailMessages.map((message) =>
-      normalizeGmailMessage({
-        userId: account.user_id,
-        connectedAccountId: account.id,
-        accountEmail,
-        message,
-      }),
-    );
-
-    await insertNormalizedMessages(supabase, normalized);
-    const analyzedCount = await analyzePendingMessages(supabase, account);
     const watch = await watchGmailInbox(accessToken).catch(() => null);
 
     if (watch?.historyId) {
-      await supabase.from("sync_cursors").upsert(
-        {
-          connected_account_id: account.id,
-          provider: "gmail",
-          cursor_type: "gmail_history_id",
-          cursor_value: watch.historyId,
-          expires_at: watch.expiration
-            ? new Date(Number(watch.expiration)).toISOString()
-            : null,
-          metadata: { watchRegisteredAt: new Date().toISOString() },
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "connected_account_id,cursor_type" },
+      await upsertHistoryCursor(
+        supabase,
+        account.id,
+        watch.historyId,
+        watch.expiration ? new Date(Number(watch.expiration)).toISOString() : null,
       );
     }
 
@@ -310,7 +386,7 @@ export async function syncGmailAccount(
       last_error: null,
     });
 
-    return { importedCount: normalized.length, analyzedCount };
+    return result;
   } catch (error) {
     const needsReconnect =
       error instanceof Error && error.message.includes("token refresh");
@@ -328,6 +404,64 @@ export async function syncGmailAccount(
   }
 }
 
+export async function syncGmailIncrementalAccount(
+  supabase: SupabaseClient,
+  account: GmailConnectedAccountRow,
+  notificationHistoryId?: string | null,
+) {
+  if (account.status === "disconnected") {
+    return { importedCount: 0, analyzedCount: 0, fallbackFullSync: false };
+  }
+
+  const cursor = await getHistoryCursor(supabase, account.id);
+
+  if (!cursor) {
+    return { ...(await syncGmailAccount(supabase, account)), fallbackFullSync: true };
+  }
+
+  try {
+    await markAccount(supabase, account.id, {
+      last_sync_at: new Date().toISOString(),
+      last_error: null,
+    });
+
+    const accessToken = await getFreshAccessToken(supabase, account);
+    const history = await listInboxHistoryMessageIds(accessToken, cursor);
+    const result = await importAndAnalyzeMessages(
+      supabase,
+      account,
+      accessToken,
+      history.messageIds,
+    );
+    const nextCursor = notificationHistoryId ?? history.historyId;
+
+    if (nextCursor) {
+      await upsertHistoryCursor(supabase, account.id, nextCursor);
+    }
+
+    await markAccount(supabase, account.id, {
+      status: "connected",
+      last_successful_sync_at: new Date().toISOString(),
+      last_error: null,
+    });
+
+    return { ...result, fallbackFullSync: false };
+  } catch (error) {
+    if (error instanceof GmailApiError && error.status === 404) {
+      return { ...(await syncGmailAccount(supabase, account)), fallbackFullSync: true };
+    }
+
+    await markAccount(supabase, account.id, {
+      status: "sync_error",
+      last_error:
+        error instanceof Error
+          ? error.message
+          : "Gmail incremental sync failed.",
+    });
+    throw error;
+  }
+}
+
 export async function syncPrimaryGmailAccount(
   supabase: SupabaseClient,
   userId: string,
@@ -340,7 +474,7 @@ export async function syncPrimaryGmailAccount(
     .neq("status", "disconnected")
     .order("updated_at", { ascending: false })
     .limit(1)
-    .maybeSingle<ConnectedAccountRow>();
+    .maybeSingle<GmailConnectedAccountRow>();
 
   if (error) {
     throw error;

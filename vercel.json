@@ -1,0 +1,16 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/process-sync-jobs",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/gmail-watch-renewal",
+      "schedule": "0 8 * * *"
+    },
+    {
+      "path": "/api/cron/fallback-poll",
+      "schedule": "0 */6 * * *"
+    }
+  ]
+}
