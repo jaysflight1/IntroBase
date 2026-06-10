@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -37,6 +37,37 @@ export default function ContactsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [note, setNote] = useState("");
 
+  useEffect(() => {
+    let active = true;
+
+    async function loadContacts() {
+      const response = await fetch("/api/contacts");
+      if (!response.ok) return;
+
+      const payload = (await response.json()) as {
+        contacts?: ExtractedContact[];
+      };
+
+      if (!active || !payload.contacts?.length) return;
+
+      setContacts((current) => {
+        const existingIds = new Set(current.map((contact) => contact.id));
+        const merged = [
+          ...payload.contacts!.filter((contact) => !existingIds.has(contact.id)),
+          ...current,
+        ];
+        writeJson(STORAGE_KEYS.savedContacts, merged);
+        return merged;
+      });
+    }
+
+    void loadContacts();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const sortedContacts = useMemo(
     () =>
       [...contacts].sort((a, b) => {
@@ -51,23 +82,35 @@ export default function ContactsPage() {
     writeJson(STORAGE_KEYS.savedContacts, nextContacts);
   }
 
+  async function syncContact(contact: ExtractedContact) {
+    await fetch("/api/contacts", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contact }),
+    }).catch(() => null);
+  }
+
+  async function syncFollowUp(followup: FollowUp) {
+    await fetch("/api/followups", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ followup }),
+    }).catch(() => null);
+  }
+
   function markImportant(contact: ExtractedContact) {
+    const updated = { ...contact, priority: urgencyToPriority("today") };
     persist(
-      contacts.map((item) =>
-        item.id === contact.id
-          ? { ...item, priority: urgencyToPriority("today") }
-          : item,
-      ),
+      contacts.map((item) => (item.id === contact.id ? updated : item)),
     );
+    void syncContact(updated);
     void logEvent("saved_contact", { contact_id: contact.id, priority: "high" });
   }
 
   function saveNote(contact: ExtractedContact) {
-    persist(
-      contacts.map((item) =>
-        item.id === contact.id ? { ...item, note } : item,
-      ),
-    );
+    const updated = { ...contact, note };
+    persist(contacts.map((item) => (item.id === contact.id ? updated : item)));
+    void syncContact(updated);
     setEditingId(null);
     setNote("");
     toast.success("Note saved");
@@ -89,6 +132,7 @@ export default function ContactsPage() {
     };
 
     writeJson(STORAGE_KEYS.followups, [...followups, followUp]);
+    void syncFollowUp(followUp);
     void logEvent("created_followup", {
       contact_id: contact.id,
       priority: contact.priority,

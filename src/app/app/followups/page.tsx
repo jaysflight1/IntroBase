@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -65,6 +65,37 @@ export default function FollowUpsPage() {
     [],
   );
 
+  useEffect(() => {
+    let active = true;
+
+    async function loadFollowUps() {
+      const response = await fetch("/api/followups");
+      if (!response.ok) return;
+
+      const payload = (await response.json()) as { followups?: FollowUp[] };
+
+      if (!active || !payload.followups?.length) return;
+
+      setFollowups((current) => {
+        const existingIds = new Set(current.map((followup) => followup.id));
+        const merged = [
+          ...payload.followups!.filter(
+            (followup) => !existingIds.has(followup.id),
+          ),
+          ...current,
+        ];
+        writeJson(STORAGE_KEYS.followups, merged);
+        return merged;
+      });
+    }
+
+    void loadFollowUps();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const normalized = useMemo(
     () =>
       followups
@@ -86,6 +117,16 @@ export default function FollowUpsPage() {
     );
     setFollowups(next);
     writeJson(STORAGE_KEYS.followups, next);
+
+    const doneFollowUp = next.find((followup) => followup.id === id);
+
+    if (doneFollowUp) {
+      void fetch("/api/followups", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ followup: doneFollowUp }),
+      }).catch(() => null);
+    }
   }
 
   if (followups.length === 0) {

@@ -1,6 +1,7 @@
 import { Mail, ShieldCheck, UserCircle } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DeleteDataButton } from "@/app/app/account/DeleteDataButton";
 import { getCurrentUser } from "@/lib/supabase/server-auth";
 
 export default async function AccountPage() {
@@ -61,6 +62,20 @@ export default async function AccountPage() {
             is separate and will be requested only from the Gmail integration
             flow.
           </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Data controls</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm leading-6 text-muted-foreground">
+            Delete imported Gmail and Slack messages, analysis, integration
+            tokens, saved contacts, follow-ups, and local browser data. This
+            does not delete your Google sign-in account.
+          </p>
+          <DeleteDataButton />
         </CardContent>
       </Card>
     </div>

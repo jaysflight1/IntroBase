@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   Clipboard,
   ContactRound,
+  Filter,
   MailCheck,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -68,6 +69,7 @@ export default function BoardPage() {
     return stored ? migrateAnalysisResult(stored) : null;
   });
   const [selected, setSelected] = useState<AnalyzedMessage | null>(null);
+  const [sourceFilter, setSourceFilter] = useState("all");
 
   useEffect(() => {
     void logEvent("viewed_board");
@@ -121,15 +123,29 @@ export default function BoardPage() {
   }, []);
 
   const messages = useMemo(() => analysis?.messages ?? [], [analysis]);
+  const sourceFilters = useMemo(() => {
+    const sources = Array.from(
+      new Set(messages.map((message) => message.source).filter(Boolean)),
+    ).sort((a, b) => a.localeCompare(b));
+
+    return ["all", ...sources];
+  }, [messages]);
+  const visibleMessages = useMemo(
+    () =>
+      sourceFilter === "all"
+        ? messages
+        : messages.filter((message) => message.source === sourceFilter),
+    [messages, sourceFilter],
+  );
   const grouped = useMemo(
     () =>
       TIMING_COLUMNS.map((column) => ({
         ...column,
-        messages: messages
+        messages: visibleMessages
           .filter((message) => column.urgencies.includes(message.urgency))
           .sort((a, b) => b.priorityScore - a.priorityScore),
       })),
-    [messages],
+    [visibleMessages],
   );
 
   function persist(nextMessages: AnalyzedMessage[]) {
@@ -167,6 +183,22 @@ export default function BoardPage() {
     });
   }
 
+  async function syncContact(contact: ExtractedContact) {
+    await fetch("/api/contacts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ contact }),
+    }).catch(() => null);
+  }
+
+  async function syncFollowUp(followup: FollowUp) {
+    await fetch("/api/followups", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ followup }),
+    }).catch(() => null);
+  }
+
   function openMessage(message: AnalyzedMessage) {
     setSelected(message);
     void logEvent("opened_message", {
@@ -182,25 +214,22 @@ export default function BoardPage() {
       [],
     );
     const exists = contacts.some((contact) => contact.name === message.senderName);
-    const nextContacts = exists
-      ? contacts
-      : [
-          ...contacts,
-          {
-            id: makeClientId("contact"),
-            name: message.senderName,
-            organization: message.senderOrganization,
-            role: message.senderRole,
-            source: message.source,
-            tags: message.contactTags,
-            lastInteractionSummary: message.summary,
-            priority: message.priority,
-            nextStep: message.suggestedAction,
-            lastInteractionAt: new Date().toISOString(),
-          },
-        ];
+    const newContact: ExtractedContact = {
+      id: makeClientId("contact"),
+      name: message.senderName,
+      organization: message.senderOrganization,
+      role: message.senderRole,
+      source: message.source,
+      tags: message.contactTags,
+      lastInteractionSummary: message.summary,
+      priority: message.priority,
+      nextStep: message.suggestedAction,
+      lastInteractionAt: new Date().toISOString(),
+    };
+    const nextContacts = exists ? contacts : [...contacts, newContact];
 
     writeJson(STORAGE_KEYS.savedContacts, nextContacts);
+    if (!exists) void syncContact(newContact);
     toast.success(exists ? "Contact already saved" : "Contact saved");
     void logEvent("saved_contact", {
       message_id: message.id,
@@ -226,6 +255,7 @@ export default function BoardPage() {
     };
 
     writeJson(STORAGE_KEYS.followups, [...followups, followUp]);
+    void syncFollowUp(followUp);
     updateMessage(message.id, {
       status: "follow_up",
       urgency: "this_month",
@@ -275,6 +305,26 @@ export default function BoardPage() {
           Analyze another batch
         </Link>
       </div>
+
+      {sourceFilters.length > 2 ? (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-card px-3 py-2">
+          <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+            <Filter className="size-4" />
+            Source
+          </div>
+          {sourceFilters.map((source) => (
+            <Button
+              key={source}
+              type="button"
+              size="sm"
+              variant={sourceFilter === source ? "default" : "outline"}
+              onClick={() => setSourceFilter(source)}
+            >
+              {source === "all" ? "All" : source}
+            </Button>
+          ))}
+        </div>
+      ) : null}
 
       <div className="grid gap-4 lg:grid-cols-4">
         {grouped.map((column) => {

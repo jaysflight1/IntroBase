@@ -82,6 +82,9 @@ The app is built as a privacy-conscious beta: manual pasted message analysis kee
 
 - `POST /api/analyze` - validates and analyzes pasted messages, rate-limited to 5 batches per anonymous user per hour when Supabase is configured.
 - `GET /api/board` - returns analyzed Gmail/Slack messages for the authenticated user.
+- `/api/contacts` - loads and saves authenticated user contacts.
+- `/api/followups` - loads and saves authenticated user follow-ups.
+- `POST /api/account/delete-data` - deletes authenticated Introbase data and integration tokens.
 - `POST /api/events` - logs anonymous product events.
 - `POST /api/feedback` - stores survey responses and optional emails.
 - `GET /api/metrics` - returns admin metrics when `x-admin-password` matches `ADMIN_PASSWORD`.
@@ -107,6 +110,7 @@ Supabase is used for:
 - Integration-generated analyzed messages.
 - Sync cursors and account sync state.
 - Durable sync jobs for webhook-triggered and fallback processing.
+- Saved contacts and follow-ups for authenticated users.
 
 OAuth tokens are encrypted before storage with `TOKEN_ENCRYPTION_KEY`. Row-level security policies are enabled for user-owned profile and integration tables.
 
@@ -158,6 +162,7 @@ supabase/migrations/001_introbase_mvp.sql
 supabase/migrations/002_profiles_auth.sql
 supabase/migrations/003_gmail_integration.sql
 supabase/migrations/004_sync_jobs.sql
+supabase/migrations/005_saved_relationships.sql
 ```
 
 Enable Google as an OAuth provider in Supabase Auth and add the local callback URL to the redirect allow list:
