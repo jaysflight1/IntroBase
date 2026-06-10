@@ -5,7 +5,12 @@ import {
   syncGmailIncrementalAccount,
   type GmailConnectedAccountRow,
 } from "@/lib/integrations/gmail/sync";
-import { syncSlackAccount } from "@/lib/integrations/slack/sync";
+import {
+  ingestSlackEventPayload,
+  syncSlackAccount,
+  type SlackConnectedAccountRow,
+} from "@/lib/integrations/slack/sync";
+import type { SlackMessageEvent } from "@/lib/integrations/slack/types";
 
 const MAX_ATTEMPTS = 5;
 const JOB_LIMIT = 10;
@@ -26,15 +31,6 @@ interface SyncJobRow {
   job_type: SyncJobType;
   attempt_count: number;
   payload: Record<string, unknown>;
-}
-
-interface SlackAccountRow {
-  id: string;
-  user_id: string;
-  workspace_id: string | null;
-  workspace_name: string | null;
-  access_token_encrypted: string | null;
-  status: string;
 }
 
 export async function enqueueSyncJob(
@@ -152,7 +148,7 @@ async function getSlackAccount(supabase: SupabaseClient, accountId: string) {
     .select("id, user_id, workspace_id, workspace_name, access_token_encrypted, status")
     .eq("id", accountId)
     .eq("provider", "slack")
-    .maybeSingle<SlackAccountRow>();
+    .maybeSingle<SlackConnectedAccountRow>();
 
   if (error) throw error;
   return data;
@@ -180,7 +176,26 @@ async function processJob(supabase: SupabaseClient, job: SyncJobRow) {
 
   const account = await getSlackAccount(supabase, job.connected_account_id);
   if (!account) throw new Error("Slack account not found");
+
+  if (job.job_type === "slack_event") {
+    if (!isSlackMessageEvent(job.payload.event)) {
+      throw new Error("Slack event job is missing a message event payload");
+    }
+
+    await ingestSlackEventPayload(supabase, account, job.payload.event);
+    return;
+  }
+
   await syncSlackAccount(supabase, account);
+}
+
+function isSlackMessageEvent(value: unknown): value is SlackMessageEvent {
+  const event = value as Partial<SlackMessageEvent>;
+  return (
+    event?.type === "message" &&
+    typeof event.channel === "string" &&
+    typeof event.ts === "string"
+  );
 }
 
 export async function processDueSyncJobs(supabase: SupabaseClient) {

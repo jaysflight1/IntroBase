@@ -27,7 +27,7 @@ const DEFAULT_GOALS: UserGoals = {
   context: "I am a founder/builder trying to avoid missing important opportunities.",
 };
 
-interface ConnectedAccountRow {
+export interface SlackConnectedAccountRow {
   id: string;
   user_id: string;
   workspace_id: string | null;
@@ -104,7 +104,7 @@ async function markAccount(
     .eq("id", accountId);
 }
 
-function getAccessToken(account: ConnectedAccountRow) {
+function getAccessToken(account: SlackConnectedAccountRow) {
   if (!account.access_token_encrypted) {
     throw new Error("Slack access token missing. Reconnect Slack.");
   }
@@ -115,6 +115,7 @@ function getAccessToken(account: ConnectedAccountRow) {
 async function insertNormalizedMessages(
   supabase: SupabaseClient,
   messages: NormalizedSourceMessage[],
+  options?: { ignoreDuplicates?: boolean },
 ) {
   if (!messages.length) return;
 
@@ -140,14 +141,14 @@ async function insertNormalizedMessages(
     })),
     {
       onConflict: "connected_account_id,external_message_id",
-      ignoreDuplicates: true,
+      ignoreDuplicates: options?.ignoreDuplicates ?? true,
     },
   );
 }
 
 async function analyzePendingMessages(
   supabase: SupabaseClient,
-  account: ConnectedAccountRow,
+  account: SlackConnectedAccountRow,
 ) {
   const { data: pending, error } = await supabase
     .from("source_messages")
@@ -255,7 +256,7 @@ async function hydrateMessageContext(
 
 export async function syncSlackAccount(
   supabase: SupabaseClient,
-  account: ConnectedAccountRow,
+  account: SlackConnectedAccountRow,
 ) {
   if (account.status === "disconnected") {
     return { importedCount: 0, analyzedCount: 0 };
@@ -329,7 +330,7 @@ export async function syncSlackAccount(
 
 export async function ingestSlackEvent(
   supabase: SupabaseClient,
-  account: ConnectedAccountRow,
+  account: SlackConnectedAccountRow,
   event: SlackMessageEvent,
 ) {
   const accessToken = getAccessToken(account);
@@ -356,10 +357,77 @@ export async function ingestSlackEvent(
 
   if (!normalized) return { importedCount: 0, analyzedCount: 0 };
 
-  await insertNormalizedMessages(supabase, [normalized]);
+  await insertNormalizedMessages(supabase, [normalized], {
+    ignoreDuplicates: event.subtype !== "message_changed",
+  });
   const analyzedCount = await analyzePendingMessages(supabase, account);
 
   return { importedCount: 1, analyzedCount };
+}
+
+function slackExternalMessageId(
+  account: SlackConnectedAccountRow,
+  event: SlackMessageEvent,
+) {
+  const workspaceId = account.workspace_id || event.team || "slack";
+  return `${workspaceId}:${event.channel}:${event.ts}`;
+}
+
+async function markSlackMessageDeleted(
+  supabase: SupabaseClient,
+  account: SlackConnectedAccountRow,
+  event: SlackMessageEvent,
+) {
+  const deletedTs = event.deleted_ts ?? event.previous_message?.ts ?? event.ts;
+  const externalMessageId = slackExternalMessageId(account, {
+    ...event,
+    ts: deletedTs,
+  });
+
+  const { data: sourceMessage } = await supabase
+    .from("source_messages")
+    .update({
+      analysis_status: "ignored",
+      analysis_error: "Message was deleted in Slack.",
+    })
+    .eq("connected_account_id", account.id)
+    .eq("external_message_id", externalMessageId)
+    .select("id")
+    .maybeSingle<{ id: string }>();
+
+  if (sourceMessage?.id) {
+    await supabase
+      .from("analyzed_messages")
+      .update({
+        status: "ignored",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("source_message_id", sourceMessage.id);
+  }
+
+  return { importedCount: 0, analyzedCount: 0, deleted: Boolean(sourceMessage) };
+}
+
+export async function ingestSlackEventPayload(
+  supabase: SupabaseClient,
+  account: SlackConnectedAccountRow,
+  event: SlackMessageEvent,
+) {
+  if (event.subtype === "message_deleted") {
+    return markSlackMessageDeleted(supabase, account, event);
+  }
+
+  if (event.subtype === "message_changed" && event.message) {
+    return ingestSlackEvent(supabase, account, {
+      ...event.message,
+      type: "message",
+      team: event.team ?? event.message.team,
+      channel: event.channel,
+      subtype: "message_changed",
+    });
+  }
+
+  return ingestSlackEvent(supabase, account, event);
 }
 
 export async function syncPrimarySlackAccount(
@@ -374,7 +442,7 @@ export async function syncPrimarySlackAccount(
     .neq("status", "disconnected")
     .order("updated_at", { ascending: false })
     .limit(1)
-    .maybeSingle<ConnectedAccountRow>();
+    .maybeSingle<SlackConnectedAccountRow>();
 
   if (error) throw error;
   if (!account) return null;

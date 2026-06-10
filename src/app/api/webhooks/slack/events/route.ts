@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
+import { enqueueSyncJob } from "@/lib/integrations/syncJobs";
 import { verifySlackSignature } from "@/lib/integrations/slack/signature";
-import { ingestSlackEvent } from "@/lib/integrations/slack/sync";
 import type { SlackMessageEvent } from "@/lib/integrations/slack/types";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 
@@ -57,7 +57,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ challenge: payload.challenge });
   }
 
-  if (payload.type !== "event_callback" || !isMessageEvent(payload.event)) {
+  if (payload.type !== "event_callback") {
     return NextResponse.json({ ok: true, skipped: "unsupported_event" });
   }
 
@@ -67,10 +67,38 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, skipped: "storage_not_configured" });
   }
 
-  const teamId = payload.team_id ?? payload.event.team;
+  const eventTeam =
+    typeof payload.event === "object" && payload.event !== null
+      ? (payload.event as { team?: unknown }).team
+      : null;
+  const teamId =
+    payload.team_id ?? (typeof eventTeam === "string" ? eventTeam : null);
 
   if (!teamId) {
     return NextResponse.json({ ok: true, skipped: "missing_team" });
+  }
+
+  const eventType =
+    typeof payload.event === "object" && payload.event !== null
+      ? (payload.event as { type?: unknown }).type
+      : null;
+
+  if (eventType === "app_uninstalled") {
+    await supabase
+      .from("connected_accounts")
+      .update({
+        status: "disconnected",
+        last_error: "Slack app was uninstalled from the workspace.",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("provider", "slack")
+      .eq("workspace_id", teamId);
+
+    return NextResponse.json({ ok: true, handled: "app_uninstalled" });
+  }
+
+  if (!isMessageEvent(payload.event)) {
+    return NextResponse.json({ ok: true, skipped: "unsupported_event" });
   }
 
   const { data: accounts } = await supabase
@@ -82,9 +110,17 @@ export async function POST(request: Request) {
     .returns<ConnectedAccountRow[]>();
 
   for (const account of accounts ?? []) {
-    await ingestSlackEvent(supabase, account, {
-      ...payload.event,
-      team: teamId,
+    await enqueueSyncJob(supabase, {
+      userId: account.user_id,
+      connectedAccountId: account.id,
+      provider: "slack",
+      jobType: "slack_event",
+      payload: {
+        event: {
+          ...payload.event,
+          team: teamId,
+        },
+      },
     }).catch(() => null);
   }
 
