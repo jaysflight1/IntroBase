@@ -133,7 +133,9 @@ async function completeJob(supabase: SupabaseClient, jobId: string) {
 async function getGmailAccount(supabase: SupabaseClient, accountId: string) {
   const { data, error } = await supabase
     .from("connected_accounts")
-    .select("id, user_id, provider_account_email, refresh_token_encrypted, status")
+    .select(
+      "id, user_id, provider_account_email, refresh_token_encrypted, scopes, status, metadata",
+    )
     .eq("id", accountId)
     .eq("provider", "gmail")
     .maybeSingle<GmailConnectedAccountRow>();

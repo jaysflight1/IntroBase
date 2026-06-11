@@ -12,9 +12,18 @@ export class GmailApiError extends Error {
   }
 }
 
-async function gmailFetch<T>(accessToken: string, path: string) {
+async function gmailFetch<T>(
+  accessToken: string,
+  path: string,
+  init?: RequestInit,
+) {
   const response = await fetch(`${GMAIL_API_BASE}${path}`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
+    ...init,
+    headers: {
+      ...(init?.body ? { "Content-Type": "application/json" } : {}),
+      Authorization: `Bearer ${accessToken}`,
+      ...init?.headers,
+    },
   });
 
   if (!response.ok) {
@@ -22,6 +31,28 @@ async function gmailFetch<T>(accessToken: string, path: string) {
   }
 
   return (await response.json()) as T;
+}
+
+export interface GmailLabel {
+  id: string;
+  name: string;
+  messageListVisibility?: "show" | "hide";
+  labelListVisibility?: "labelShow" | "labelShowIfUnread" | "labelHide";
+  color?: {
+    textColor?: string;
+    backgroundColor?: string;
+  };
+  type?: "system" | "user";
+}
+
+export interface GmailLabelSpec {
+  name: string;
+  messageListVisibility: "show" | "hide";
+  labelListVisibility: "labelShow" | "labelShowIfUnread" | "labelHide";
+  color: {
+    textColor: string;
+    backgroundColor: string;
+  };
 }
 
 export async function listRecentInboxMessageIds(accessToken: string) {
@@ -99,6 +130,61 @@ export async function getGmailMessage(accessToken: string, messageId: string) {
   return gmailFetch<GmailMessage>(
     accessToken,
     `/messages/${encodeURIComponent(messageId)}?${params.toString()}`,
+  );
+}
+
+export async function listGmailLabels(accessToken: string) {
+  const payload = await gmailFetch<{ labels?: GmailLabel[] }>(
+    accessToken,
+    "/labels",
+  );
+
+  return payload.labels ?? [];
+}
+
+export async function createGmailLabel(
+  accessToken: string,
+  label: GmailLabelSpec,
+) {
+  return gmailFetch<GmailLabel>(accessToken, "/labels", {
+    method: "POST",
+    body: JSON.stringify(label),
+  });
+}
+
+export async function patchGmailLabel(
+  accessToken: string,
+  labelId: string,
+  label: Partial<GmailLabelSpec>,
+) {
+  return gmailFetch<GmailLabel>(
+    accessToken,
+    `/labels/${encodeURIComponent(labelId)}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(label),
+    },
+  );
+}
+
+export async function modifyGmailMessageLabels(
+  accessToken: string,
+  messageId: string,
+  input: {
+    addLabelIds?: string[];
+    removeLabelIds?: string[];
+  },
+) {
+  return gmailFetch<GmailMessage>(
+    accessToken,
+    `/messages/${encodeURIComponent(messageId)}/modify`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        addLabelIds: input.addLabelIds ?? [],
+        removeLabelIds: input.removeLabelIds ?? [],
+      }),
+    },
   );
 }
 
