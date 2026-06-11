@@ -58,9 +58,12 @@ export function LoginForm() {
   }
 
   return (
-    <div className="surface-card w-full max-w-md p-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">
+    <div className="surface-card w-full max-w-md p-8">
+      <div className="flex flex-col items-center text-center">
+        <span className="flex size-10 items-center justify-center rounded-xl bg-primary text-base font-bold text-primary-foreground">
+          In
+        </span>
+        <h1 className="mt-4 text-xl font-semibold tracking-tight">
           Sign in to Introbase
         </h1>
         <p className="mt-2 text-sm leading-6 text-muted-foreground">
@@ -95,7 +98,7 @@ export function LoginForm() {
         </p>
       ) : null}
 
-      <p className="mt-5 text-xs leading-5 text-muted-foreground">
+      <p className="mt-5 text-center text-xs leading-5 text-muted-foreground">
         Gmail access is requested separately later. Signing in with Google does
         not give Introbase access to your inbox.
       </p>
