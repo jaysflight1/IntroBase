@@ -1,6 +1,13 @@
-import { Mail, ShieldCheck, UserCircle } from "lucide-react";
+import { ShieldCheck } from "lucide-react";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader } from "@/components/PageHeader";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { DeleteDataButton } from "@/app/app/account/DeleteDataButton";
 import { getCurrentUser } from "@/lib/supabase/server-auth";
 
@@ -15,46 +22,36 @@ export default async function AccountPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-semibold tracking-tight">Account</h1>
-        <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-          Manage the Google account used to sign in to Introbase.
-        </p>
-      </div>
+      <PageHeader
+        title="Account"
+        description="Manage the Google account used to sign in to Introbase."
+      />
 
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <UserCircle className="size-5" />
-            Profile
-          </CardTitle>
+        <CardHeader className="border-b">
+          <CardTitle>Profile</CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
-          <div className="rounded-lg border border-border/80 bg-muted/30 p-4">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <UserCircle className="size-4 text-primary" />
-              Name
+        <CardContent>
+          <div className="flex items-center gap-4">
+            <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-primary/10 text-lg font-semibold text-primary">
+              {displayName.charAt(0).toUpperCase()}
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-semibold">{displayName}</p>
+              <p className="truncate text-sm text-muted-foreground">
+                {user?.email ?? "Not signed in"}
+              </p>
             </div>
-            <p className="mt-2 text-sm text-muted-foreground">{displayName}</p>
-          </div>
-          <div className="rounded-lg border border-border/80 bg-muted/30 p-4">
-            <div className="flex items-center gap-2 text-sm font-medium">
-              <Mail className="size-4 text-primary" />
-              Email
-            </div>
-            <p className="mt-2 text-sm text-muted-foreground">
-              {user?.email ?? "Not signed in"}
-            </p>
           </div>
         </CardContent>
       </Card>
 
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ShieldCheck className="size-5" />
-            Access
-          </CardTitle>
+        <CardHeader className="border-b">
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="size-4 text-muted-foreground" />
+            <CardTitle>Access</CardTitle>
+          </div>
         </CardHeader>
         <CardContent>
           <p className="text-sm leading-6 text-muted-foreground">
@@ -65,9 +62,12 @@ export default async function AccountPage() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Data controls</CardTitle>
+      <Card className="ring-destructive/20">
+        <CardHeader className="border-b">
+          <CardTitle className="text-destructive">Danger zone</CardTitle>
+          <CardDescription>
+            Permanently remove your data from Introbase.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm leading-6 text-muted-foreground">

@@ -17,7 +17,7 @@ export default function AppIndexPage() {
   }, [router]);
 
   return (
-    <div className="surface-card p-8 text-sm text-muted-foreground">
+    <div className="flex items-center justify-center py-24 text-sm text-muted-foreground">
       Opening Introbase...
     </div>
   );

@@ -7,20 +7,14 @@ import {
   CheckCircle2,
   Clipboard,
   ContactRound,
-  Filter,
+  KanbanSquare,
   MailCheck,
+  Plus,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,19 +28,17 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { EmptyState } from "@/components/EmptyState";
+import { PageHeader } from "@/components/PageHeader";
 import { readJson, writeJson } from "@/lib/browserStorage";
 import { logEvent } from "@/lib/logEvent";
 import { makeClientId } from "@/lib/normalize";
 import { STORAGE_KEYS } from "@/lib/storageKeys";
-import { formatMessageSubtitle } from "@/lib/messageDisplay";
 import {
-  getTimingAccentClass,
   getTimingBadgeClass,
   getTimingCardClass,
-  getTimingColumnClass,
   getTimingDotClass,
   getTimingLabel,
-  getTimingPersonClass,
   migrateAnalysisResult,
   REPLY_TIMINGS,
   syncMessageTiming,
@@ -270,136 +262,140 @@ export default function BoardPage() {
 
   if (!analysis) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>No analysis yet</CardTitle>
-          <CardDescription>
-            Paste messages or use the sample inbox to create your priority
-            board.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Link href="/app/import" className={buttonVariants()}>
-            Go to import
-          </Link>
-        </CardContent>
-      </Card>
+      <EmptyState
+        icon={KanbanSquare}
+        title="Your board is empty"
+        description="Import messages or connect an inbox and Introbase will rank everything by reply urgency."
+        action={
+          <div className="flex flex-wrap justify-center gap-2">
+            <Link href="/app/import" className={buttonVariants()}>
+              <Plus className="size-4" />
+              Import messages
+            </Link>
+            <Link
+              href="/app/integrations"
+              className={buttonVariants({ variant: "outline" })}
+            >
+              Connect an inbox
+            </Link>
+          </div>
+        }
+      />
     );
   }
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-sm font-medium text-muted-foreground">
-            {analysis.messageCount} messages analyzed
-          </p>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight">
-            Priority board
-          </h1>
-        </div>
-        <Link
-          href="/app/import"
-          className={buttonVariants({ variant: "outline" })}
-        >
-          Analyze another batch
-        </Link>
-      </div>
+      <PageHeader
+        title="Board"
+        description={`${analysis.messageCount} ${
+          analysis.messageCount === 1 ? "message" : "messages"
+        } ranked by reply urgency.`}
+        actions={
+          <>
+            {sourceFilters.length > 2 ? (
+              <div className="flex items-center gap-1 rounded-lg border border-border/80 bg-card p-1">
+                {sourceFilters.map((source) => (
+                  <button
+                    key={source}
+                    type="button"
+                    onClick={() => setSourceFilter(source)}
+                    className={cn(
+                      "rounded-md px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground",
+                      sourceFilter === source &&
+                        "bg-secondary text-secondary-foreground",
+                    )}
+                  >
+                    {source === "all" ? "All sources" : source}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            <Link href="/app/import" className={buttonVariants()}>
+              <Plus className="size-4" />
+              Import messages
+            </Link>
+          </>
+        }
+      />
 
-      {sourceFilters.length > 2 ? (
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-card px-3 py-2">
-          <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-            <Filter className="size-4" />
-            Source
-          </div>
-          {sourceFilters.map((source) => (
-            <Button
-              key={source}
-              type="button"
-              size="sm"
-              variant={sourceFilter === source ? "default" : "outline"}
-              onClick={() => setSourceFilter(source)}
-            >
-              {source === "all" ? "All" : source}
-            </Button>
-          ))}
-        </div>
-      ) : null}
-
-      <div className="grid gap-4 lg:grid-cols-4">
+      <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-4">
         {grouped.map((column) => {
           const columnUrgency = column.urgencies[0];
 
           return (
-          <section key={column.title} className="space-y-3">
-            <div
-              className={cn(
-                "flex items-center justify-between rounded-lg border px-3 py-2",
-                getTimingColumnClass(columnUrgency),
-              )}
+            <section
+              key={column.title}
+              className="flex flex-col rounded-xl border border-border/70 bg-muted/40"
             >
-              <div className="flex items-center gap-2">
-                <span
-                  className={cn("size-2 rounded-full", getTimingDotClass(columnUrgency))}
-                />
-                <h2 className={cn("font-semibold", getTimingAccentClass(columnUrgency))}>
-                  {column.title}
-                </h2>
-              </div>
-              <Badge variant="outline" className="bg-card/80">
-                {column.messages.length}
-              </Badge>
-            </div>
-            <div className="space-y-3">
-              {column.messages.map((message) => (
-                <Card
-                  key={message.id}
-                  className={cn(
-                    "cursor-pointer shadow-sm transition-all hover:shadow-md",
-                    getTimingCardClass(message.urgency),
-                  )}
-                  onClick={() => openMessage(message)}
-                >
-                  <CardHeader className="space-y-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <CardTitle
-                          className={cn(
-                            "text-base",
-                            getTimingPersonClass(message.urgency),
-                          )}
-                        >
-                          {message.senderName}
-                        </CardTitle>
-                        {message.source ? (
-                          <CardDescription>{message.source}</CardDescription>
-                        ) : null}
-                      </div>
-                      <Badge className={getTimingBadgeClass(message.urgency)}>
-                        {getTimingLabel(message.urgency)}
-                      </Badge>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Badge variant="outline">{message.category}</Badge>
-                      <Badge variant="outline">{message.priorityScore}</Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-3">
-                    <p className="text-sm leading-6">{message.summary}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {message.suggestedAction}
-                    </p>
-                  </CardContent>
-                </Card>
-              ))}
-              {column.messages.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-border/80 bg-card/60 p-4 text-sm text-muted-foreground">
-                  No messages in this lane.
+              <header className="flex items-center justify-between px-3 py-2.5">
+                <div className="flex items-center gap-2">
+                  <span
+                    className={cn(
+                      "size-2 rounded-full",
+                      getTimingDotClass(columnUrgency),
+                    )}
+                  />
+                  <h2 className="text-sm font-semibold">{column.title}</h2>
                 </div>
-              ) : null}
-            </div>
-          </section>
-        );
+                <span className="rounded-full bg-card px-2 py-0.5 text-xs font-medium tabular-nums text-muted-foreground ring-1 ring-border/80">
+                  {column.messages.length}
+                </span>
+              </header>
+              <div className="flex flex-col gap-2 px-2 pb-2">
+                {column.messages.map((message) => (
+                  <button
+                    key={message.id}
+                    type="button"
+                    onClick={() => openMessage(message)}
+                    className={cn(
+                      "rounded-lg border border-border/70 bg-card p-3 text-left shadow-xs transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none",
+                      getTimingCardClass(message.urgency),
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold">
+                          {message.senderName}
+                        </p>
+                        <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                          {[message.senderRole, message.senderOrganization]
+                            .filter(Boolean)
+                            .join(" · ") || message.source}
+                        </p>
+                      </div>
+                      <span
+                        className={cn(
+                          "shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                          getTimingBadgeClass(message.urgency),
+                        )}
+                      >
+                        {getTimingLabel(message.urgency)}
+                      </span>
+                    </div>
+                    <p className="mt-2 line-clamp-2 text-sm leading-5 text-foreground/80">
+                      {message.summary}
+                    </p>
+                    <div className="mt-3 flex items-center justify-between gap-2">
+                      <span className="rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-medium capitalize text-muted-foreground">
+                        {message.category}
+                      </span>
+                      {message.source ? (
+                        <span className="truncate text-[11px] text-muted-foreground">
+                          {message.source}
+                        </span>
+                      ) : null}
+                    </div>
+                  </button>
+                ))}
+                {column.messages.length === 0 ? (
+                  <div className="rounded-lg border border-dashed border-border/80 px-3 py-6 text-center text-xs text-muted-foreground">
+                    Nothing here
+                  </div>
+                ) : null}
+              </div>
+            </section>
+          );
         })}
       </div>
 
@@ -407,83 +403,118 @@ export default function BoardPage() {
         {selected ? (
           <SheetContent className="w-full overflow-y-auto sm:max-w-xl">
             <SheetHeader>
-              <SheetTitle
-                className={getTimingPersonClass(selected.urgency)}
-              >
+              <div className="flex flex-wrap items-center gap-2">
+                <span
+                  className={cn(
+                    "rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                    getTimingBadgeClass(selected.urgency),
+                  )}
+                >
+                  {getTimingLabel(selected.urgency)}
+                </span>
+                <Badge variant="outline" className="capitalize">
+                  {selected.category}
+                </Badge>
+                {selected.source ? (
+                  <Badge variant="outline">{selected.source}</Badge>
+                ) : null}
+              </div>
+              <SheetTitle className="mt-1 text-lg">
                 {selected.senderName}
               </SheetTitle>
-              <SheetDescription>
-                {formatMessageSubtitle(
-                  selected.source,
-                  selected.category,
-                  selected.urgency,
-                )}
-              </SheetDescription>
+              {selected.senderRole || selected.senderOrganization ? (
+                <SheetDescription>
+                  {[selected.senderRole, selected.senderOrganization]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </SheetDescription>
+              ) : null}
             </SheetHeader>
             <div className="mt-6 space-y-6">
               <section>
-                <h3 className="text-sm font-semibold">Why this matters</h3>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  {selected.whyItMatters}
-                </p>
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Why this matters
+                </h3>
+                <p className="mt-2 text-sm leading-6">{selected.whyItMatters}</p>
               </section>
               <section>
-                <h3 className="text-sm font-semibold">Suggested action</h3>
-                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Suggested action
+                </h3>
+                <p className="mt-2 text-sm leading-6">
                   {selected.suggestedAction}
                 </p>
               </section>
               <section>
-                <h3 className="text-sm font-semibold">Suggested reply</h3>
-                <div className="mt-2 rounded-md border border-primary/15 bg-primary/5 p-3 text-sm leading-6">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Suggested reply
+                  </h3>
+                  <Button
+                    variant="ghost"
+                    size="xs"
+                    onClick={() => void copyReply(selected)}
+                  >
+                    <Clipboard className="size-3.5" />
+                    Copy
+                  </Button>
+                </div>
+                <div className="mt-2 rounded-lg border border-border/80 bg-muted/40 p-3 text-sm leading-6">
                   {selected.suggestedReply}
                 </div>
               </section>
               <section>
-                <h3 className="text-sm font-semibold">Original message</h3>
-                <div className="mt-2 whitespace-pre-wrap rounded-md border bg-white p-3 text-sm leading-6">
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Original message
+                </h3>
+                <div className="mt-2 whitespace-pre-wrap rounded-lg border border-border/80 bg-card p-3 text-sm leading-6 text-muted-foreground">
                   {selected.originalText}
                 </div>
               </section>
-              <div className="grid gap-2 sm:grid-cols-2">
-                <Button onClick={() => void copyReply(selected)}>
+              <div className="space-y-2 border-t border-border/70 pt-5">
+                <Button className="w-full" onClick={() => void copyReply(selected)}>
                   <Clipboard className="size-4" />
-                  Copy reply
+                  Copy suggested reply
                 </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    updateMessage(selected.id, { status: "replied" });
-                    toast.success("Marked as replied");
-                  }}
-                >
-                  <MailCheck className="size-4" />
-                  Mark replied
-                </Button>
-                <Button variant="outline" onClick={() => createFollowUp(selected)}>
-                  <CheckCircle2 className="size-4" />
-                  Follow up later
-                </Button>
-                <Button variant="outline" onClick={() => saveContact(selected)}>
-                  <ContactRound className="size-4" />
-                  Save contact
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    updateMessage(selected.id, {
-                      urgency: "later",
-                      status: "ignored",
-                    });
-                    void logEvent("changed_priority", {
-                      message_id: selected.id,
-                      priority: "low",
-                    });
-                  }}
-                >
-                  <Archive className="size-4" />
-                  Move to later
-                </Button>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      updateMessage(selected.id, { status: "replied" });
+                      toast.success("Marked as replied");
+                    }}
+                  >
+                    <MailCheck className="size-4" />
+                    Mark replied
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => createFollowUp(selected)}
+                  >
+                    <CheckCircle2 className="size-4" />
+                    Follow up later
+                  </Button>
+                  <Button variant="outline" onClick={() => saveContact(selected)}>
+                    <ContactRound className="size-4" />
+                    Save contact
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      updateMessage(selected.id, {
+                        urgency: "later",
+                        status: "ignored",
+                      });
+                      void logEvent("changed_priority", {
+                        message_id: selected.id,
+                        priority: "low",
+                      });
+                    }}
+                  >
+                    <Archive className="size-4" />
+                    Move to later
+                  </Button>
+                </div>
                 <DropdownMenu>
                   <DropdownMenuTrigger
                     className={cn(
@@ -508,6 +539,12 @@ export default function BoardPage() {
                           });
                         }}
                       >
+                        <span
+                          className={cn(
+                            "size-2 rounded-full",
+                            getTimingDotClass(urgency),
+                          )}
+                        />
                         {getTimingLabel(urgency)}
                       </DropdownMenuItem>
                     ))}

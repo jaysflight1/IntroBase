@@ -2,8 +2,11 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Inbox, Loader2, ShieldCheck, Sparkles } from "lucide-react";
+import { Loader2, ShieldCheck, Sparkles } from "lucide-react";
 import { toast } from "sonner";
+
+import { PageHeader } from "@/components/PageHeader";
+import { cn } from "@/lib/utils";
 
 import { defaultGoalOptions, sampleInbox } from "@/data/sampleInbox";
 import { getAnonymousUserId, getSessionId } from "@/lib/anonymousUser";
@@ -143,109 +146,103 @@ function ImportView() {
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-      <section className="space-y-5">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight">
-            Paste messy inbound.{" "}
-            <span className="text-brand-gradient">Introbase ranks</span> what
-            matters.
-          </h1>
-        </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Import messages"
+        description="Paste inbound from email, LinkedIn, Slack, or anywhere else. Introbase analyzes the batch and ranks every message on your board."
+      />
 
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Inbox className="size-5" />
-              Inbound messages
-            </CardTitle>
+          <CardHeader className="border-b">
+            <CardTitle>Inbound messages</CardTitle>
             <CardDescription>
-              Paste emails, LinkedIn DMs, Slack messages, Discord messages, or
-              connection requests here.
+              Separate messages with sender names, source labels, or blank
+              lines.
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-3">
             <Textarea
               value={rawMessages}
               onChange={(event) => setRawMessages(event.target.value)}
-              className="min-h-[420px] resize-y bg-card font-mono text-sm"
+              className="min-h-[380px] resize-y bg-card font-mono text-sm"
               placeholder={`Source: LinkedIn
 From: Maya Chen
 Message: Hey, I saw what you're building and would love to talk about a possible pilot with our accelerator.`}
             />
-            <div className="flex flex-col gap-3 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
-              <span>
-                Separate messages with sender names, source labels, or blank
-                lines.
-              </span>
-              <span className={remainingChars < 0 ? "text-destructive" : ""}>
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex gap-2">
+                <Button onClick={analyzeMessages} disabled={isSubmitting}>
+                  {isSubmitting ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="size-4" />
+                  )}
+                  Analyze messages
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={loadSample}
+                  disabled={isSubmitting}
+                >
+                  Use sample inbox
+                </Button>
+              </div>
+              <span
+                className={cn(
+                  "text-xs tabular-nums text-muted-foreground",
+                  remainingChars < 0 && "font-medium text-destructive",
+                )}
+              >
                 {remainingChars.toLocaleString()} characters left
               </span>
             </div>
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <Button onClick={analyzeMessages} disabled={isSubmitting}>
-                {isSubmitting ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <Sparkles className="size-4" />
-                )}
-                Analyze messages
-              </Button>
-              <Button variant="outline" onClick={loadSample} disabled={isSubmitting}>
-                Use sample inbox
-              </Button>
-            </div>
           </CardContent>
         </Card>
-      </section>
 
-      <aside className="space-y-5">
-        <Card>
-          <CardHeader>
-            <CardTitle>What should Introbase prioritize?</CardTitle>
-            <CardDescription>
-              Choose the opportunities that matter most right now.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {defaultGoalOptions.map((goal) => (
-              <label
-                key={goal}
-                className="flex cursor-pointer items-center gap-3 rounded-lg border border-border/80 bg-card p-3 text-sm transition-colors hover:border-primary/25 hover:bg-accent/30"
-              >
-                <Checkbox
-                  checked={prioritize.includes(goal)}
-                  onCheckedChange={() => toggleGoal(goal)}
+        <aside className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Prioritization</CardTitle>
+              <CardDescription>
+                Tell Introbase which opportunities matter most right now.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {defaultGoalOptions.map((goal) => (
+                <label
+                  key={goal}
+                  className="flex cursor-pointer items-center gap-3 rounded-lg border border-border/80 bg-card px-3 py-2.5 text-sm transition-colors hover:bg-muted/50"
+                >
+                  <Checkbox
+                    checked={prioritize.includes(goal)}
+                    onCheckedChange={() => toggleGoal(goal)}
+                  />
+                  {goal}
+                </label>
+              ))}
+              <div className="space-y-2 pt-3">
+                <label className="text-sm font-medium">
+                  Additional context
+                </label>
+                <Input
+                  value={context}
+                  onChange={(event) => setContext(event.target.value)}
+                  placeholder="I am fundraising, hiring, or managing customers..."
                 />
-                {goal}
-              </label>
-            ))}
-            <div className="space-y-2 pt-2">
-              <label className="text-sm font-medium">
-                Anything else Introbase should know?
-              </label>
-              <Input
-                value={context}
-                onChange={(event) => setContext(event.target.value)}
-                placeholder="I am fundraising, hiring, or managing customers..."
-              />
-            </div>
-          </CardContent>
-        </Card>
+              </div>
+            </CardContent>
+          </Card>
 
-        <Card className="border-primary/25 bg-gradient-to-br from-primary/10 via-card to-chart-3/10">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-primary">
-              <ShieldCheck className="size-5" />
-              Privacy note
-            </CardTitle>
-            <CardDescription className="text-foreground/80">
+          <div className="flex gap-3 rounded-xl border border-border/70 bg-muted/40 p-4">
+            <ShieldCheck className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+            <p className="text-xs leading-5 text-muted-foreground">
               Introbase does not store your raw pasted messages server-side by
               default. The analyzed board is saved locally in this browser.
-            </CardDescription>
-          </CardHeader>
-        </Card>
-      </aside>
+            </p>
+          </div>
+        </aside>
+      </div>
     </div>
   );
 }

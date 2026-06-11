@@ -1,68 +1,76 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { CalendarClock, Check } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { EmptyState } from "@/components/EmptyState";
+import { PageHeader } from "@/components/PageHeader";
 import { readJson, writeJson } from "@/lib/browserStorage";
 import { getFollowUpStatus } from "@/lib/followups";
-import {
-  getTimingCardClass,
-  getTimingPersonClass,
-  migrateUrgency,
-  priorityToUrgency,
-} from "@/lib/replyTiming";
 import { STORAGE_KEYS } from "@/lib/storageKeys";
-import type {
-  AnalysisResult,
-  ExtractedContact,
-  FollowUp,
-  Urgency,
-} from "@/types";
+import { cn } from "@/lib/utils";
+import type { FollowUp } from "@/types";
 
-function statusLabel(status: FollowUp["status"]) {
-  if (status === "due_today") return "Due today";
-  return status.replace("_", " ");
+interface StatusSection {
+  key: FollowUp["status"];
+  label: string;
+  description: string;
+  dot: string;
+  badge: string;
+  rail: string;
 }
 
-function resolveFollowUpTiming(
-  followup: FollowUp,
-  contacts: ExtractedContact[],
-  analysis: AnalysisResult | null,
-): Urgency {
-  const message = analysis?.messages.find(
-    (item) => item.id === followup.messageId,
-  );
-  if (message) return migrateUrgency(message.urgency);
+// Color follows the follow-up's own status, not the original message's
+// urgency — overdue is what needs attention on this screen.
+const STATUS_SECTIONS: StatusSection[] = [
+  {
+    key: "overdue",
+    label: "Overdue",
+    description: "Past their follow-up date",
+    dot: "bg-red-500",
+    badge: "border-red-200 bg-red-50 text-red-700",
+    rail: "border-l-[3px] border-l-red-500",
+  },
+  {
+    key: "due_today",
+    label: "Due today",
+    description: "Scheduled for today",
+    dot: "bg-amber-500",
+    badge: "border-amber-200 bg-amber-50 text-amber-700",
+    rail: "border-l-[3px] border-l-amber-500",
+  },
+  {
+    key: "upcoming",
+    label: "Upcoming",
+    description: "Scheduled for a later date",
+    dot: "bg-blue-500",
+    badge: "border-blue-200 bg-blue-50 text-blue-700",
+    rail: "border-l-[3px] border-l-blue-500",
+  },
+  {
+    key: "done",
+    label: "Done",
+    description: "Completed follow-ups",
+    dot: "bg-emerald-500",
+    badge: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    rail: "border-l-[3px] border-l-emerald-500",
+  },
+];
 
-  const contact = contacts.find(
-    (item) =>
-      item.id === followup.contactId ||
-      item.name.toLowerCase() === followup.person.toLowerCase(),
-  );
-  if (contact) return priorityToUrgency(contact.priority);
-
-  return "this_month";
+function formatFollowUpDate(date: string) {
+  const parsed = new Date(`${date}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return date;
+  return parsed.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 export default function FollowUpsPage() {
   const [followups, setFollowups] = useState<FollowUp[]>(() =>
     readJson<FollowUp[]>(STORAGE_KEYS.followups, []),
-  );
-  const contacts = useMemo(
-    () => readJson<ExtractedContact[]>(STORAGE_KEYS.savedContacts, []),
-    [],
-  );
-  const analysis = useMemo(
-    () => readJson<AnalysisResult | null>(STORAGE_KEYS.currentAnalysis, null),
-    [],
   );
 
   useEffect(() => {
@@ -96,19 +104,26 @@ export default function FollowUpsPage() {
     };
   }, []);
 
-  const normalized = useMemo(
-    () =>
-      followups
-        .map((followup) => ({
-          ...followup,
-          timing: resolveFollowUpTiming(followup, contacts, analysis),
-          status:
-            followup.status === "done"
-              ? "done"
-              : getFollowUpStatus(followup.followUpDate),
-        }))
-        .sort((a, b) => a.followUpDate.localeCompare(b.followUpDate)),
-    [followups, contacts, analysis],
+  const sections = useMemo(() => {
+    const normalized = followups
+      .map((followup) => ({
+        ...followup,
+        status:
+          followup.status === "done"
+            ? ("done" as const)
+            : getFollowUpStatus(followup.followUpDate),
+      }))
+      .sort((a, b) => a.followUpDate.localeCompare(b.followUpDate));
+
+    return STATUS_SECTIONS.map((section) => ({
+      ...section,
+      items: normalized.filter((followup) => followup.status === section.key),
+    })).filter((section) => section.items.length > 0);
+  }, [followups]);
+
+  const openCount = useMemo(
+    () => followups.filter((followup) => followup.status !== "done").length,
+    [followups],
   );
 
   function markDone(id: string) {
@@ -131,54 +146,84 @@ export default function FollowUpsPage() {
 
   if (followups.length === 0) {
     return (
-      <div className="surface-card p-8">
-        <h1 className="text-2xl font-semibold">Follow-ups</h1>
-        <p className="mt-2 text-muted-foreground">
-          Create follow-ups from messages or contacts to track next steps.
-        </p>
-      </div>
+      <EmptyState
+        icon={CalendarClock}
+        title="No follow-ups yet"
+        description="Create follow-ups from board messages or contacts to keep next steps on schedule."
+      />
     );
   }
 
   return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="text-3xl font-semibold tracking-tight">Follow-ups</h1>
-        <p className="mt-2 text-muted-foreground">
-          No reminders are sent yet. This is a local tracker for the beta.
-        </p>
-      </div>
-      <div className="grid gap-4 md:grid-cols-2">
-        {normalized.map((followup) => (
-          <Card
-            key={followup.id}
-            className={getTimingCardClass(followup.timing)}
-          >
-            <CardHeader>
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <CardTitle className={getTimingPersonClass(followup.timing)}>
-                    {followup.person}
-                  </CardTitle>
-                  <CardDescription>{followup.followUpDate}</CardDescription>
+    <div className="space-y-6">
+      <PageHeader
+        title="Follow-ups"
+        description={`${openCount} open ${
+          openCount === 1 ? "follow-up" : "follow-ups"
+        }. Reminders are not sent yet — this is a local tracker for the beta.`}
+      />
+
+      <div className="space-y-8">
+        {sections.map((section) => (
+          <section key={section.key}>
+            <div className="flex items-center gap-2">
+              <span className={cn("size-2 rounded-full", section.dot)} />
+              <h2 className="text-sm font-semibold">{section.label}</h2>
+              <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium tabular-nums text-muted-foreground">
+                {section.items.length}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                · {section.description}
+              </span>
+            </div>
+            <div className="mt-3 grid items-start gap-3 md:grid-cols-2">
+              {section.items.map((followup) => (
+                <div
+                  key={followup.id}
+                  className={cn(
+                    "rounded-xl border border-border/70 bg-card p-4 shadow-xs",
+                    section.rail,
+                    section.key === "done" && "opacity-70",
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold">
+                        {followup.person}
+                      </p>
+                      <p className="mt-0.5 flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <CalendarClock className="size-3.5" />
+                        {formatFollowUpDate(followup.followUpDate)}
+                      </p>
+                    </div>
+                    <span
+                      className={cn(
+                        "shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                        section.badge,
+                      )}
+                    >
+                      {section.label}
+                    </span>
+                  </div>
+                  <p className="mt-3 text-sm leading-6">{followup.reason}</p>
+                  <div className="mt-3 rounded-lg border border-border/80 bg-muted/40 p-3 text-sm leading-6 text-muted-foreground">
+                    {followup.suggestedMessage}
+                  </div>
+                  {section.key !== "done" ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-3"
+                      onClick={() => markDone(followup.id)}
+                    >
+                      <Check className="size-4" />
+                      Mark done
+                    </Button>
+                  ) : null}
                 </div>
-                <Badge variant="outline">{statusLabel(followup.status)}</Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <p className="text-sm leading-6">{followup.reason}</p>
-              <div className="rounded-md border border-primary/15 bg-primary/5 p-3 text-sm leading-6">
-                {followup.suggestedMessage}
-              </div>
-              <Button
-                variant="outline"
-                disabled={followup.status === "done"}
-                onClick={() => markDone(followup.id)}
-              >
-                Mark done
-              </Button>
-            </CardContent>
-          </Card>
+              ))}
+            </div>
+          </section>
         ))}
       </div>
     </div>

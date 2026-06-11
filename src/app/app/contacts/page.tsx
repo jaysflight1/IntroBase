@@ -1,14 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Star, StickyNote, Users } from "lucide-react";
 import { toast } from "sonner";
 
+import { EmptyState } from "@/components/EmptyState";
+import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import {
   getTimingBadgeClass,
+  getTimingDotClass,
   getTimingLabel,
-  getTimingPersonClass,
-  getTimingRowClass,
   priorityToUrgency,
   urgencyToPriority,
 } from "@/lib/replyTiming";
@@ -142,33 +144,30 @@ export default function ContactsPage() {
 
   if (contacts.length === 0) {
     return (
-      <div className="surface-card p-8">
-        <h1 className="text-2xl font-semibold">Contacts</h1>
-        <p className="mt-2 text-muted-foreground">
-          Saved contacts and extracted people will appear here after analysis.
-        </p>
-      </div>
+      <EmptyState
+        icon={Users}
+        title="No contacts yet"
+        description="People extracted from your analyzed inbound will appear here, along with priority and suggested next steps."
+      />
     );
   }
 
   return (
-    <div className="space-y-5">
-      <div>
-        <h1 className="text-3xl font-semibold tracking-tight">Contacts</h1>
-        <p className="mt-2 text-muted-foreground">
-          Lightweight relationship context extracted from your analyzed inbound.
-        </p>
-      </div>
+    <div className="space-y-6">
+      <PageHeader
+        title="Contacts"
+        description="Relationship context extracted from your analyzed inbound, sorted by priority."
+      />
       <div className="surface-card overflow-x-auto">
         <Table>
           <TableHeader>
-            <TableRow>
+            <TableRow className="hover:bg-transparent">
               <TableHead>Name</TableHead>
               <TableHead>Organization</TableHead>
               <TableHead>Tags</TableHead>
               <TableHead>Priority</TableHead>
               <TableHead>Next step</TableHead>
-              <TableHead>Actions</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -176,26 +175,23 @@ export default function ContactsPage() {
               const timing = priorityToUrgency(contact.priority);
 
               return (
-              <TableRow
-                key={contact.id}
-                className={getTimingRowClass(timing)}
-              >
+              <TableRow key={contact.id}>
                 <TableCell>
-                  <div
-                    className={cn(
-                      "font-medium",
-                      getTimingPersonClass(timing),
-                    )}
-                  >
-                    {contact.name}
-                  </div>
-                  {contact.source ? (
-                    <div className="text-sm text-muted-foreground">
-                      {contact.source}
+                  <div className="flex items-center gap-2.5">
+                    <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+                      {contact.name.charAt(0).toUpperCase()}
+                    </span>
+                    <div className="min-w-0">
+                      <div className="font-medium">{contact.name}</div>
+                      {contact.source ? (
+                        <div className="text-xs text-muted-foreground">
+                          {contact.source}
+                        </div>
+                      ) : null}
                     </div>
-                  ) : null}
+                  </div>
                 </TableCell>
-                <TableCell>{contact.organization || "-"}</TableCell>
+                <TableCell>{contact.organization || "—"}</TableCell>
                 <TableCell>
                   <div className="flex flex-wrap gap-1">
                     {contact.tags.map((tag) => (
@@ -206,11 +202,22 @@ export default function ContactsPage() {
                   </div>
                 </TableCell>
                 <TableCell>
-                  <Badge className={getTimingBadgeClass(timing)}>
+                  <span
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                      getTimingBadgeClass(timing),
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "size-1.5 rounded-full",
+                        getTimingDotClass(timing),
+                      )}
+                    />
                     {getTimingLabel(timing)}
-                  </Badge>
+                  </span>
                 </TableCell>
-                <TableCell className="min-w-64">
+                <TableCell className="min-w-64 whitespace-normal">
                   <div>{contact.nextStep}</div>
                   {editingId === contact.id ? (
                     <div className="mt-2 flex gap-2">
@@ -230,21 +237,33 @@ export default function ContactsPage() {
                   ) : null}
                 </TableCell>
                 <TableCell>
-                  <div className="flex flex-wrap gap-2">
-                    <Button size="sm" variant="outline" onClick={() => markImportant(contact)}>
-                      Important
+                  <div className="flex items-center justify-end gap-1 whitespace-nowrap">
+                    <Button
+                      size="icon-sm"
+                      variant="ghost"
+                      title="Mark as high priority"
+                      aria-label="Mark as high priority"
+                      onClick={() => markImportant(contact)}
+                    >
+                      <Star className="size-4" />
                     </Button>
                     <Button
-                      size="sm"
-                      variant="outline"
+                      size="icon-sm"
+                      variant="ghost"
+                      title="Add note"
+                      aria-label="Add note"
                       onClick={() => {
                         setEditingId(contact.id);
                         setNote(contact.note ?? "");
                       }}
                     >
-                      Note
+                      <StickyNote className="size-4" />
                     </Button>
-                    <Button size="sm" onClick={() => createFollowUp(contact)}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => createFollowUp(contact)}
+                    >
                       Follow up
                     </Button>
                   </div>
