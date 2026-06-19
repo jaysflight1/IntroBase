@@ -74,7 +74,7 @@ const steps = [
     icon: Inbox,
     title: "Bring in your inbound",
     description:
-      "Paste emails, DMs, and Slack messages, or connect Gmail and Slack read-only.",
+      "Paste emails, DMs, and Slack messages. Gmail and Slack integrations are optional.",
   },
   {
     icon: ListOrdered,
@@ -243,7 +243,7 @@ export default function Home() {
               Stop losing opportunities in your inbox.
             </h2>
             <p className="mx-auto mt-3 max-w-xl text-sm leading-6 opacity-80">
-              Try the sample inbox in under a minute — no sign-up required.
+              Sign in with Google, then try the sample inbox in under a minute.
             </p>
             <div className="mt-7 flex justify-center">
               <LandingActions inverted />

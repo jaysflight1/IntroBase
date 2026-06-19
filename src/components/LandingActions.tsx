@@ -2,7 +2,7 @@
 
 import type { JSX } from "react";
 import Link from "next/link";
-import { ArrowRight, PlayCircle } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 
 import { buttonVariants } from "@/components/ui/button";
 import { logEvent } from "@/lib/logEvent";
@@ -19,10 +19,10 @@ export function LandingActions({
 }: LandingActionsProps): JSX.Element {
   if (compact) {
     return (
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-3">
         <Link
           href="/login"
-          className={cn(buttonVariants({ variant: "ghost" }), "hidden sm:flex")}
+          className={buttonVariants()}
           onClick={() =>
             void logEvent("clicked_cta", { cta: "continue_with_google" })
           }
@@ -31,46 +31,41 @@ export function LandingActions({
         </Link>
         <Link
           href="/app/import?sample=1"
-          className={buttonVariants()}
+          className="hidden text-sm font-medium text-muted-foreground transition-colors hover:text-foreground sm:inline-flex"
           onClick={() =>
             void logEvent("clicked_cta", { cta: "view_sample_demo" })
           }
         >
-          Try the demo
+          Try demo
         </Link>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-3 sm:flex-row">
+    <div className="flex flex-col items-center gap-3 sm:flex-row">
       <Link
         href="/login"
         className={cn(
           buttonVariants({ size: "lg" }),
           "gap-2",
-          inverted &&
-            "bg-background text-foreground hover:bg-background/90",
         )}
         onClick={() =>
           void logEvent("clicked_cta", { cta: "continue_with_google" })
         }
       >
-        Get started with Google
+        Sign in
         <ArrowRight className="size-4" />
       </Link>
       <Link
         href="/app/import?sample=1"
         className={cn(
-          buttonVariants({ size: "lg", variant: "outline" }),
-          "gap-2",
-          inverted &&
-            "border-background/30 bg-transparent text-background hover:bg-background/10 hover:text-background",
+          "text-sm font-medium text-muted-foreground transition-colors hover:text-foreground",
+          inverted && "text-background/75 hover:text-background",
         )}
         onClick={() => void logEvent("clicked_cta", { cta: "view_sample_demo" })}
       >
-        <PlayCircle className="size-4" />
-        Try the sample inbox
+        Try demo
       </Link>
     </div>
   );

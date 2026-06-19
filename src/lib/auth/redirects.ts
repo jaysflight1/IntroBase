@@ -1,4 +1,4 @@
-const DEFAULT_SIGNED_IN_PATH = "/app/integrations";
+const DEFAULT_SIGNED_IN_PATH = "/app";
 
 export function sanitizeNextPath(value: string | null | undefined) {
   if (!value) {

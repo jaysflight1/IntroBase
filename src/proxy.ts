@@ -49,7 +49,7 @@ export async function proxy(request: NextRequest) {
 
   if (user && request.nextUrl.pathname === "/login") {
     const appUrl = request.nextUrl.clone();
-    appUrl.pathname = "/app/integrations";
+    appUrl.pathname = "/app";
     appUrl.search = "";
     return NextResponse.redirect(appUrl);
   }

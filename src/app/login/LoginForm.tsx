@@ -21,10 +21,7 @@ export function LoginForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const supabase = createSupabaseBrowserClient();
   const nextPath = useMemo(
-    () =>
-      sanitizeNextPath(
-        searchParams.get("next") ?? "/app/integrations?welcome=1",
-      ),
+    () => sanitizeNextPath(searchParams.get("next") ?? "/app"),
     [searchParams],
   );
   const error = searchParams.get("error");

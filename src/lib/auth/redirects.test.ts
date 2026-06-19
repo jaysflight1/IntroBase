@@ -10,13 +10,11 @@ describe("sanitizeNextPath", () => {
   });
 
   it("falls back for external URLs", () => {
-    expect(sanitizeNextPath("https://evil.example/app")).toBe(
-      "/app/integrations",
-    );
+    expect(sanitizeNextPath("https://evil.example/app")).toBe("/app");
   });
 
   it("falls back for protocol-relative URLs", () => {
-    expect(sanitizeNextPath("//evil.example/app")).toBe("/app/integrations");
+    expect(sanitizeNextPath("//evil.example/app")).toBe("/app");
   });
 });
 
