@@ -18,6 +18,33 @@ function withStatusParam(path: string, status: string) {
   return `${url.pathname}${url.search}${url.hash}`;
 }
 
+function logSlackCallbackError(stage: string, error: unknown) {
+  const supabaseError =
+    error && typeof error === "object"
+      ? (error as {
+          code?: unknown;
+          details?: unknown;
+          hint?: unknown;
+          message?: unknown;
+        })
+      : null;
+
+  console.error("[slack_oauth_callback_failed]", {
+    stage,
+    message:
+      error instanceof Error
+        ? error.message
+        : typeof supabaseError?.message === "string"
+          ? supabaseError.message
+          : "Unknown error",
+    name: error instanceof Error ? error.name : typeof error,
+    code: typeof supabaseError?.code === "string" ? supabaseError.code : null,
+    details:
+      typeof supabaseError?.details === "string" ? supabaseError.details : null,
+    hint: typeof supabaseError?.hint === "string" ? supabaseError.hint : null,
+  });
+}
+
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
@@ -55,6 +82,7 @@ export async function GET(request: Request) {
     const teamName = token.team?.name || "Slack workspace";
 
     if (!teamId || !token.access_token) {
+      logSlackCallbackError("token_payload", new Error("Slack token response missing team or access token"));
       return redirectTo(request, "/app/integrations?slack=connect_failed");
     }
 
@@ -87,6 +115,7 @@ export async function GET(request: Request) {
       );
 
     if (upsertError) {
+      logSlackCallbackError("storage_upsert", upsertError);
       throw upsertError;
     }
 
@@ -101,7 +130,8 @@ export async function GET(request: Request) {
       request,
       withStatusParam(sanitizeNextPath(verifiedState.nextPath), status),
     );
-  } catch {
+  } catch (error) {
+    logSlackCallbackError("callback", error);
     return redirectTo(request, "/app/integrations?slack=connect_failed");
   }
 }
