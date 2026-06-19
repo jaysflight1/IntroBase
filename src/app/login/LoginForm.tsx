@@ -91,14 +91,9 @@ export function LoginForm() {
 
       {!supabase ? (
         <p className="mt-4 text-sm leading-6 text-muted-foreground">
-          Add Supabase environment variables locally to enable Google sign-in.
+          Add Supabase environment variables to enable Google sign-in.
         </p>
       ) : null}
-
-      <p className="mt-5 text-center text-xs leading-5 text-muted-foreground">
-        Gmail access is requested separately later. Signing in with Google does
-        not give Introbase access to your inbox.
-      </p>
     </div>
   );
 }
