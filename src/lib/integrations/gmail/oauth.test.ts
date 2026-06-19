@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   buildGmailOAuthUrl,
-  GMAIL_MODIFY_SCOPE,
+  GMAIL_READONLY_SCOPE,
 } from "@/lib/integrations/gmail/oauth";
 
 const originalEnv = {
@@ -18,7 +18,7 @@ afterEach(() => {
 });
 
 describe("gmail oauth", () => {
-  it("builds a modify-capable Gmail OAuth URL", () => {
+  it("builds a read-only Gmail OAuth URL", () => {
     process.env.GOOGLE_GMAIL_CLIENT_ID = "google-client";
     process.env.GOOGLE_GMAIL_CLIENT_SECRET = "google-secret";
     process.env.NEXT_PUBLIC_APP_URL = "https://introbase.example";
@@ -32,7 +32,7 @@ describe("gmail oauth", () => {
     );
 
     expect(url.origin).toBe("https://accounts.google.com");
-    expect(url.searchParams.get("scope")).toBe(GMAIL_MODIFY_SCOPE);
+    expect(url.searchParams.get("scope")).toBe(GMAIL_READONLY_SCOPE);
     expect(url.searchParams.get("access_type")).toBe("offline");
     expect(url.searchParams.get("include_granted_scopes")).toBe("true");
     expect(url.searchParams.get("login_hint")).toBe("founder@example.com");
@@ -40,5 +40,6 @@ describe("gmail oauth", () => {
       "https://introbase.example/api/integrations/gmail/callback",
     );
     expect(url.searchParams.get("scope")).not.toContain("gmail.send");
+    expect(url.searchParams.get("scope")).not.toContain("gmail.modify");
   });
 });

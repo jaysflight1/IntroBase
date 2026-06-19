@@ -8,15 +8,10 @@ import {
   listRecentInboxMessageIds,
   watchGmailInbox,
 } from "@/lib/integrations/gmail/api";
-import {
-  applyGmailPriorityLabel,
-  getOrEnsureGmailPriorityLabels,
-  hasGmailModifyScope,
-} from "@/lib/integrations/gmail/labels";
 import { normalizeGmailMessage } from "@/lib/integrations/gmail/parser";
 import { refreshGmailAccessToken } from "@/lib/integrations/gmail/oauth";
 import { decryptToken, encryptToken } from "@/lib/security/tokenCrypto";
-import type { AnalyzedMessage, Priority, UserGoals } from "@/types";
+import type { AnalyzedMessage, UserGoals } from "@/types";
 import type { NormalizedSourceMessage } from "@/types/integrations";
 
 const DEFAULT_GOALS: UserGoals = {
@@ -191,7 +186,7 @@ async function analyzePendingMessages(
   }
 
   if (!pending?.length) {
-    return { analyzedCount: 0, labelTargets: [] };
+    return { analyzedCount: 0 };
   }
 
   await supabase
@@ -245,26 +240,7 @@ async function analyzePendingMessages(
         .in("id", failedSourceIds);
     }
 
-    return {
-      analyzedCount: rows.length,
-      labelTargets: pending
-        .map((sourceMessage, index) => {
-          const analyzed = analysis.messages[index];
-
-          if (!analyzed) return null;
-
-          return {
-            externalMessageId: sourceMessage.external_message_id,
-            priority: analyzed.priority,
-          };
-        })
-        .filter(
-          (
-            target,
-          ): target is { externalMessageId: string; priority: Priority } =>
-            target !== null,
-        ),
-    };
+    return { analyzedCount: rows.length };
   } catch (error) {
     await supabase
       .from("source_messages")
@@ -279,47 +255,6 @@ async function analyzePendingMessages(
       );
     throw error;
   }
-}
-
-async function applyPriorityLabels(
-  supabase: SupabaseClient,
-  account: GmailConnectedAccountRow,
-  accessToken: string,
-  targets: { externalMessageId: string; priority: Priority }[],
-) {
-  if (!targets.length) {
-    return 0;
-  }
-
-  if (!hasGmailModifyScope(account.scopes)) {
-    await markAccount(supabase, account.id, {
-      status: "reauth_required",
-      last_error:
-        "Reconnect Gmail to allow IntroBase to apply priority labels.",
-    });
-    return 0;
-  }
-
-  const labelIds = await getOrEnsureGmailPriorityLabels({
-    supabase,
-    accountId: account.id,
-    accessToken,
-    metadata: account.metadata,
-  });
-
-  let labeledCount = 0;
-
-  for (const target of targets) {
-    await applyGmailPriorityLabel({
-      accessToken,
-      messageId: target.externalMessageId,
-      priority: target.priority,
-      labelIds,
-    });
-    labeledCount += 1;
-  }
-
-  return labeledCount;
 }
 
 async function upsertHistoryCursor(
@@ -382,28 +317,10 @@ async function importAndAnalyzeMessages(
 
   await insertNormalizedMessages(supabase, normalized);
   const analysis = await analyzePendingMessages(supabase, account);
-  let labeledCount = 0;
-
-  try {
-    labeledCount = await applyPriorityLabels(
-      supabase,
-      account,
-      accessToken,
-      analysis.labelTargets,
-    );
-  } catch (error) {
-    await markAccount(supabase, account.id, {
-      last_error:
-        error instanceof Error
-          ? `Gmail priority labeling failed: ${error.message}`
-          : "Gmail priority labeling failed.",
-    });
-  }
 
   return {
     importedCount: normalized.length,
     analyzedCount: analysis.analyzedCount,
-    labeledCount,
   };
 }
 
@@ -575,100 +492,4 @@ export async function syncPrimaryGmailAccount(
   }
 
   return syncGmailAccount(supabase, account);
-}
-
-export async function applyPriorityLabelsForPrimaryGmailAccount(
-  supabase: SupabaseClient,
-  userId: string,
-) {
-  const { data: account, error } = await supabase
-    .from("connected_accounts")
-    .select(
-      "id, user_id, provider_account_email, refresh_token_encrypted, scopes, status, metadata",
-    )
-    .eq("user_id", userId)
-    .eq("provider", "gmail")
-    .neq("status", "disconnected")
-    .order("updated_at", { ascending: false })
-    .limit(1)
-    .maybeSingle<GmailConnectedAccountRow>();
-
-  if (error) {
-    throw error;
-  }
-
-  if (!account) {
-    return null;
-  }
-
-  if (!hasGmailModifyScope(account.scopes)) {
-    await markAccount(supabase, account.id, {
-      status: "reauth_required",
-      last_error:
-        "Reconnect Gmail to allow IntroBase to apply priority labels.",
-    });
-    return { labeledCount: 0, reconnectRequired: true };
-  }
-
-  const accessToken = await getFreshAccessToken(supabase, account);
-  const { data: analyzed, error: analyzedError } = await supabase
-    .from("analyzed_messages")
-    .select("source_message_id, priority")
-    .eq("user_id", userId)
-    .eq("provider", "gmail")
-    .order("received_at", { ascending: false })
-    .limit(100)
-    .returns<{ source_message_id: string; priority: Priority }[]>();
-
-  if (analyzedError) {
-    throw analyzedError;
-  }
-
-  if (!analyzed?.length) {
-    return { labeledCount: 0, reconnectRequired: false };
-  }
-
-  const sourceIds = analyzed.map((message) => message.source_message_id);
-  const { data: sources, error: sourceError } = await supabase
-    .from("source_messages")
-    .select("id, external_message_id")
-    .eq("connected_account_id", account.id)
-    .in("id", sourceIds)
-    .returns<{ id: string; external_message_id: string }[]>();
-
-  if (sourceError) {
-    throw sourceError;
-  }
-
-  const externalMessageIdsBySourceId = new Map(
-    (sources ?? []).map((source) => [source.id, source.external_message_id]),
-  );
-  const targets = analyzed
-    .map((message) => {
-      const externalMessageId = externalMessageIdsBySourceId.get(
-        message.source_message_id,
-      );
-
-      return externalMessageId
-        ? { externalMessageId, priority: message.priority }
-        : null;
-    })
-    .filter(
-      (target): target is { externalMessageId: string; priority: Priority } =>
-        target !== null,
-    );
-
-  const labeledCount = await applyPriorityLabels(
-    supabase,
-    account,
-    accessToken,
-    targets,
-  );
-
-  await markAccount(supabase, account.id, {
-    status: "connected",
-    last_error: null,
-  });
-
-  return { labeledCount, reconnectRequired: false };
 }

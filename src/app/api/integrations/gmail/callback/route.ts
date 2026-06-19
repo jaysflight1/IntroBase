@@ -4,7 +4,7 @@ import { sanitizeNextPath } from "@/lib/auth/redirects";
 import {
   exchangeGmailCode,
   fetchGmailProfile,
-  GMAIL_MODIFY_SCOPE,
+  GMAIL_READONLY_SCOPE,
 } from "@/lib/integrations/gmail/oauth";
 import { syncPrimaryGmailAccount } from "@/lib/integrations/gmail/sync";
 import { verifyOAuthState } from "@/lib/integrations/oauthState";
@@ -77,7 +77,7 @@ export async function GET(request: Request) {
           access_token_encrypted: encryptToken(token.access_token),
           refresh_token_encrypted: encryptToken(token.refresh_token),
           token_expires_at: expiresAt,
-          scopes: [GMAIL_MODIFY_SCOPE],
+          scopes: [GMAIL_READONLY_SCOPE],
           status: "connected",
           last_error: null,
           metadata: {

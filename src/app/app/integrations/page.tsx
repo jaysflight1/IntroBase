@@ -5,7 +5,6 @@ import {
   Inbox,
   MessageSquareText,
   RefreshCw,
-  Tags,
   Unplug,
 } from "lucide-react";
 
@@ -22,14 +21,12 @@ import {
 } from "@/components/ui/card";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 import { getCurrentUser } from "@/lib/supabase/server-auth";
-import { hasGmailModifyScope } from "@/lib/integrations/gmail/labels";
 import { cn } from "@/lib/utils";
 
 const successStatusKeys = new Set([
   "connected",
   "synced",
   "disconnected",
-  "labels_applied",
 ]);
 
 function StatusBanner({ message, success }: { message: string; success: boolean }) {
@@ -102,15 +99,12 @@ const gmailStatusMessages: Record<string, string> = {
     "Google did not return offline access. Try reconnecting Gmail.",
   connect_failed: "Introbase could not connect Gmail. Try again.",
   disconnected: "Gmail disconnected.",
-  labels_applied: "Gmail priority labels were applied.",
-  label_failed: "Gmail priority labeling failed. Try reconnecting Gmail.",
+  labels_disabled:
+    "Gmail labeling is disabled because IntroBase now requests read-only Gmail access.",
   not_connected: "Connect Gmail before syncing.",
   not_configured: "Gmail OAuth is not configured for this environment.",
-  reconnect_required:
-    "Reconnect Gmail to allow Introbase to apply priority labels.",
   storage_not_configured: "Supabase storage is not configured.",
-  synced:
-    "Gmail sync finished. New priority messages are on your board and labeled in Gmail when permissions allow.",
+  synced: "Gmail sync finished. New priority messages are on your board.",
   sync_failed: "Gmail sync failed. Try reconnecting Gmail.",
 };
 
@@ -156,13 +150,12 @@ export default async function IntegrationsPage({
   const params = await searchParams;
   const gmailAccount = user ? await getConnectedAccount(user.id, "gmail") : null;
   const slackAccount = user ? await getConnectedAccount(user.id, "slack") : null;
-  const gmailCanLabel = hasGmailModifyScope(gmailAccount?.scopes);
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Integrations"
-        description="Connect Gmail and Slack. Introbase imports authorized messages, prioritizes them, and can apply Gmail priority labels."
+        description="Optional Gmail and Slack connections can import authorized messages and prioritize them on your board."
       />
 
       {params?.gmail ? (
@@ -192,8 +185,8 @@ export default async function IntegrationsPage({
               <ConnectionStatusPill account={gmailAccount} />
             </CardAction>
             <CardDescription className="mt-1">
-              Inbox sync imports recent emails, prioritizes them, and labels
-              Gmail messages as IntroBase High, Medium, or Low.
+              Inbox sync imports recent emails and prioritizes them on your
+              board.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -220,17 +213,12 @@ export default async function IntegrationsPage({
                     {gmailAccount.last_error}
                   </p>
                 ) : null}
-                {!gmailCanLabel ? (
-                  <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800">
-                    Reconnect Gmail to grant label permissions.
-                  </p>
-                ) : null}
               </dl>
             ) : (
               <p className="text-sm leading-6 text-muted-foreground">
-                Introbase requests Gmail modify access so it can create and
-                apply priority labels. It does not send, delete, or archive
-                emails.
+                Introbase requests read-only Gmail access. It can import and
+                analyze authorized inbox messages, but it cannot send, delete,
+                archive, or label emails.
               </p>
             )}
           </CardContent>
@@ -241,15 +229,6 @@ export default async function IntegrationsPage({
                   <Button type="submit">
                     <RefreshCw className="size-4" />
                     Sync now
-                  </Button>
-                </form>
-                <form
-                  action="/api/integrations/gmail/apply-priority-labels"
-                  method="post"
-                >
-                  <Button type="submit" variant="outline">
-                    <Tags className="size-4" />
-                    Apply labels now
                   </Button>
                 </form>
                 <form action="/api/integrations/gmail/disconnect" method="post">
