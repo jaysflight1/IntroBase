@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/cron/process-sync-jobs",
-      "schedule": "*/5 * * * *"
+      "schedule": "0 2 * * *"
     },
     {
       "path": "/api/cron/gmail-watch-renewal",
@@ -10,7 +10,7 @@
     },
     {
       "path": "/api/cron/fallback-poll",
-      "schedule": "0 */6 * * *"
+      "schedule": "0 14 * * *"
     }
   ]
 }
