@@ -52,8 +52,7 @@ function StatusBanner({ message, success }: { message: string; success: boolean 
 function ConnectionStatusPill({ account }: { account: ConnectedAccountRow | null }) {
   if (!account) {
     return (
-      <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/50 px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
-        <span className="size-1.5 rounded-full bg-slate-400" />
+      <span className="inline-flex items-center rounded-full border border-border bg-muted/50 px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
         Not connected
       </span>
     );
@@ -64,18 +63,12 @@ function ConnectionStatusPill({ account }: { account: ConnectedAccountRow | null
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-xs font-medium",
+        "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium",
         healthy
           ? "border-emerald-200 bg-emerald-50 text-emerald-700"
           : "border-amber-200 bg-amber-50 text-amber-700",
       )}
     >
-      <span
-        className={cn(
-          "size-1.5 rounded-full",
-          healthy ? "bg-emerald-500" : "bg-amber-500",
-        )}
-      />
       {healthy ? "Connected" : account.status.replaceAll("_", " ")}
     </span>
   );
@@ -148,14 +141,13 @@ export default async function IntegrationsPage({
 }) {
   const user = await getCurrentUser();
   const params = await searchParams;
-  const gmailAccount = user ? await getConnectedAccount(user.id, "gmail") : null;
   const slackAccount = user ? await getConnectedAccount(user.id, "slack") : null;
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Integrations"
-        description="Optional Gmail and Slack connections can import authorized messages and prioritize them on your board."
+        description="Connect Slack to import authorized messages and prioritize them on your board."
       />
 
       {params?.gmail ? (
@@ -173,82 +165,6 @@ export default async function IntegrationsPage({
       ) : null}
 
       <div className="grid items-start gap-4 md:grid-cols-2">
-        <Card>
-          <CardHeader className="border-b">
-            <div className="flex items-center gap-3">
-              <span className="flex size-9 items-center justify-center rounded-lg border border-border/80 bg-muted/50">
-                <Inbox className="size-4.5" />
-              </span>
-              <CardTitle>Gmail</CardTitle>
-            </div>
-            <CardAction>
-              <ConnectionStatusPill account={gmailAccount} />
-            </CardAction>
-            <CardDescription className="mt-1">
-              Inbox sync imports recent emails and prioritizes them on your
-              board.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {gmailAccount ? (
-              <dl className="space-y-2 text-sm">
-                <div className="flex justify-between gap-4">
-                  <dt className="text-muted-foreground">Account</dt>
-                  <dd className="truncate font-medium">
-                    {gmailAccount.provider_account_email ?? "Gmail connected"}
-                  </dd>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <dt className="text-muted-foreground">Last sync</dt>
-                  <dd>
-                    {gmailAccount.last_successful_sync_at
-                      ? new Date(
-                          gmailAccount.last_successful_sync_at,
-                        ).toLocaleString()
-                      : "Never"}
-                  </dd>
-                </div>
-                {gmailAccount.last_error ? (
-                  <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-red-700">
-                    {gmailAccount.last_error}
-                  </p>
-                ) : null}
-              </dl>
-            ) : (
-              <p className="text-sm leading-6 text-muted-foreground">
-                Introbase requests read-only Gmail access. It can import and
-                analyze authorized inbox messages, but it cannot send, delete,
-                archive, or label emails.
-              </p>
-            )}
-          </CardContent>
-          <CardFooter className="gap-2">
-            {gmailAccount ? (
-              <>
-                <form action="/api/integrations/gmail/sync-now" method="post">
-                  <Button type="submit">
-                    <RefreshCw className="size-4" />
-                    Sync now
-                  </Button>
-                </form>
-                <form action="/api/integrations/gmail/disconnect" method="post">
-                  <Button type="submit" variant="outline">
-                    <Unplug className="size-4" />
-                    Disconnect
-                  </Button>
-                </form>
-              </>
-            ) : (
-              <Link
-                href="/api/integrations/gmail/connect"
-                className={cn(buttonVariants(), "gap-2")}
-              >
-                Connect Gmail
-              </Link>
-            )}
-          </CardFooter>
-        </Card>
-
         <Card>
           <CardHeader className="border-b">
             <div className="flex items-center gap-3">
@@ -321,6 +237,36 @@ export default async function IntegrationsPage({
                 Connect Slack
               </Link>
             )}
+          </CardFooter>
+        </Card>
+
+        <Card className="bg-muted/40 text-muted-foreground opacity-75">
+          <CardHeader className="border-b">
+            <div className="flex items-center gap-3">
+              <span className="flex size-9 items-center justify-center rounded-lg border border-border/80 bg-muted/50">
+                <Inbox className="size-4.5" />
+              </span>
+              <CardTitle>Gmail</CardTitle>
+            </div>
+            <CardAction>
+              <span className="inline-flex items-center rounded-full border border-border bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+                Coming soon
+              </span>
+            </CardAction>
+            <CardDescription className="mt-1">
+              Gmail inbox sync is not available yet.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <p className="text-sm leading-6">
+              Gmail support is being prepared for a later release. For now, use
+              Slack or paste messages manually from the Import page.
+            </p>
+          </CardContent>
+          <CardFooter>
+            <Button type="button" variant="outline" disabled>
+              Connect Gmail
+            </Button>
           </CardFooter>
         </Card>
       </div>

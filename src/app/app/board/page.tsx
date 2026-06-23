@@ -37,7 +37,6 @@ import { STORAGE_KEYS } from "@/lib/storageKeys";
 import {
   getTimingBadgeClass,
   getTimingCardClass,
-  getTimingDotClass,
   getTimingLabel,
   migrateAnalysisResult,
   REPLY_TIMINGS,
@@ -325,21 +324,13 @@ export default function BoardPage() {
 
       <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-4">
         {grouped.map((column) => {
-          const columnUrgency = column.urgencies[0];
-
           return (
             <section
               key={column.title}
               className="flex flex-col rounded-xl border border-border/70 bg-muted/40"
             >
               <header className="flex items-center justify-between px-3 py-2.5">
-                <div className="flex items-center gap-2">
-                  <span
-                    className={cn(
-                      "size-2 rounded-full",
-                      getTimingDotClass(columnUrgency),
-                    )}
-                  />
+                <div className="flex items-center">
                   <h2 className="text-sm font-semibold">{column.title}</h2>
                 </div>
                 <span className="rounded-full bg-card px-2 py-0.5 text-xs font-medium tabular-nums text-muted-foreground ring-1 ring-border/80">
@@ -543,12 +534,6 @@ export default function BoardPage() {
                           });
                         }}
                       >
-                        <span
-                          className={cn(
-                            "size-2 rounded-full",
-                            getTimingDotClass(urgency),
-                          )}
-                        />
                         {getTimingLabel(urgency)}
                       </DropdownMenuItem>
                     ))}

@@ -12,7 +12,6 @@ import { VisitLogger } from "@/components/VisitLogger";
 import {
   getTimingBadgeClass,
   getTimingCardClass,
-  getTimingDotClass,
   getTimingLabel,
 } from "@/lib/replyTiming";
 import { cn } from "@/lib/utils";
@@ -109,11 +108,7 @@ export default function Home() {
 
       <main>
         <section className="mx-auto max-w-6xl px-4 pt-20 pb-16 text-center sm:px-6">
-          <span className="inline-flex items-center gap-2 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground">
-            <span className="size-1.5 rounded-full bg-emerald-500" />
-            Private beta — free while we build
-          </span>
-          <h1 className="mx-auto mt-6 max-w-3xl text-4xl font-semibold leading-tight tracking-tight sm:text-5xl">
+          <h1 className="mx-auto max-w-3xl text-4xl font-semibold leading-tight tracking-tight sm:text-5xl">
             Know exactly who to reply to first.
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-lg leading-8 text-muted-foreground">
@@ -134,13 +129,7 @@ export default function Home() {
             <div className="grid gap-3 rounded-xl bg-muted/40 p-3 text-left sm:grid-cols-2 lg:grid-cols-4">
               {previewColumns.map((column) => (
                 <div key={column.title}>
-                  <div className="flex items-center gap-2 px-1 pb-2">
-                    <span
-                      className={cn(
-                        "size-2 rounded-full",
-                        getTimingDotClass(column.timing),
-                      )}
-                    />
+                  <div className="flex items-center px-1 pb-2">
                     <p className="text-xs font-semibold">{column.title}</p>
                   </div>
                   {column.cards.map((card) => (

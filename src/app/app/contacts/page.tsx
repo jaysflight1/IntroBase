@@ -9,7 +9,6 @@ import { PageHeader } from "@/components/PageHeader";
 import { Badge } from "@/components/ui/badge";
 import {
   getTimingBadgeClass,
-  getTimingDotClass,
   getTimingLabel,
   priorityToUrgency,
   urgencyToPriority,
@@ -212,16 +211,10 @@ export default function ContactsPage() {
                 <TableCell>
                   <span
                     className={cn(
-                      "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                      "inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium",
                       getTimingBadgeClass(timing),
                     )}
                   >
-                    <span
-                      className={cn(
-                        "size-1.5 rounded-full",
-                        getTimingDotClass(timing),
-                      )}
-                    />
                     {getTimingLabel(timing)}
                   </span>
                 </TableCell>
