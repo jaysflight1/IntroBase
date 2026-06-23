@@ -53,6 +53,11 @@ describe("api schemas", () => {
       sourceTypes: ["Email"],
       categoryCounts: { customer: 1 },
       messageCount: 1,
+      analysisDiagnostics: {
+        engine: "openai",
+        model: "gpt-4.1-mini",
+        openaiAttempted: true,
+      },
     });
 
     expect(parsed.success).toBe(true);

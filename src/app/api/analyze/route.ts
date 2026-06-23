@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { analyzePayloadSchema } from "@/lib/apiSchemas";
-import { ANALYSIS_MODEL, analyzeRawMessages } from "@/lib/analysis/run";
+import { analyzeRawMessages } from "@/lib/analysis/run";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
 
 async function logServerEvent(
@@ -61,6 +61,7 @@ export async function POST(request: Request) {
   try {
     const normalized = await analyzeRawMessages(raw_messages, user_goals);
     const messages = normalized.messages;
+    const diagnostics = normalized.analysisDiagnostics;
 
     const priorityCounts = messages.reduce(
       (counts, message) => {
@@ -81,9 +82,7 @@ export async function POST(request: Request) {
         high_priority_count: priorityCounts.high,
         medium_priority_count: priorityCounts.medium,
         low_priority_count: priorityCounts.low,
-        analysis_model: process.env.OPENAI_API_KEY
-          ? ANALYSIS_MODEL
-          : "local_fallback",
+        analysis_model: diagnostics?.model ?? "unknown",
       });
     }
 
@@ -93,6 +92,10 @@ export async function POST(request: Request) {
       high_priority_count: priorityCounts.high,
       medium_priority_count: priorityCounts.medium,
       low_priority_count: priorityCounts.low,
+      analysis_engine: diagnostics?.engine ?? "unknown",
+      analysis_model: diagnostics?.model ?? "unknown",
+      openai_attempted: diagnostics?.openaiAttempted ?? false,
+      fallback_reason: diagnostics?.fallbackReason ?? null,
     });
 
     return NextResponse.json(normalized);

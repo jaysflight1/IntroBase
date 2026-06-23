@@ -85,6 +85,18 @@ const categorySchema = z.enum([
   "spam",
   "other",
 ]);
+const analysisDiagnosticsSchema = z.object({
+  engine: z.enum(["openai", "fallback"]),
+  model: z.string().min(1),
+  openaiAttempted: z.boolean(),
+  fallbackReason: z
+    .enum([
+      "missing_api_key",
+      "openai_request_failed",
+      "invalid_openai_response",
+    ])
+    .optional(),
+});
 
 export const analyzePayloadSchema = z.object({
   anonymous_user_id: z.string().min(4).max(160),
@@ -140,4 +152,5 @@ export const analysisResultSchema = z.object({
   sourceTypes: z.array(z.string()).default([]),
   categoryCounts: z.record(z.string(), z.number()).default({}),
   messageCount: z.number().int().min(0).max(50),
+  analysisDiagnostics: analysisDiagnosticsSchema.optional(),
 });

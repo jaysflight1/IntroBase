@@ -68,12 +68,38 @@ export interface FollowUp {
   status: "upcoming" | "due_today" | "overdue" | "done";
 }
 
+export type AnalysisEngine = "openai" | "fallback";
+
+export type AnalysisFallbackReason =
+  | "missing_api_key"
+  | "openai_request_failed"
+  | "invalid_openai_response";
+
+export interface AnalysisDiagnostics {
+  engine: AnalysisEngine;
+  model: string;
+  openaiAttempted: boolean;
+  fallbackReason?: AnalysisFallbackReason;
+}
+
+export interface AnalysisDiagnosticsStats {
+  totalRuns: number;
+  openaiRuns: number;
+  fallbackRuns: number;
+  missingApiKeyRuns: number;
+  requestFailedRuns: number;
+  invalidResponseRuns: number;
+  lastRunAt?: string;
+  last?: AnalysisDiagnostics;
+}
+
 export interface AnalysisResult {
   messages: AnalyzedMessage[];
   contacts: ExtractedContact[];
   sourceTypes: string[];
   categoryCounts: Record<string, number>;
   messageCount: number;
+  analysisDiagnostics?: AnalysisDiagnostics;
 }
 
 export interface UserGoals {

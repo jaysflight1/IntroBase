@@ -2,9 +2,15 @@ import { analysisResultSchema } from "@/lib/apiSchemas";
 import { createFallbackAnalysis } from "@/lib/analysis/fallback";
 import { normalizeSourceValue } from "@/lib/normalizeSource";
 import { migrateAnalysisResult } from "@/lib/replyTiming";
-import type { AnalysisResult, AnalyzedMessage, UserGoals } from "@/types";
+import type {
+  AnalysisDiagnostics,
+  AnalysisResult,
+  AnalyzedMessage,
+  UserGoals,
+} from "@/types";
 
 export const ANALYSIS_MODEL = "gpt-4.1-mini";
+export const FALLBACK_ANALYSIS_MODEL = "local_fallback";
 
 async function analyzeWithOpenAI(rawMessages: string, userGoals: UserGoals) {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -79,11 +85,51 @@ export async function analyzeRawMessages(
   rawMessages: string,
   userGoals: UserGoals,
 ) {
-  const llmResult = await analyzeWithOpenAI(rawMessages, userGoals).catch(
-    () => null,
-  );
   const fallback = createFallbackAnalysis(rawMessages, userGoals);
-  const result = analysisResultSchema.parse(llmResult ?? fallback);
+  let result: AnalysisResult | null = null;
+  let diagnostics: AnalysisDiagnostics;
 
-  return finalizeAnalysisResult(result);
+  if (!process.env.OPENAI_API_KEY) {
+    diagnostics = {
+      engine: "fallback",
+      model: FALLBACK_ANALYSIS_MODEL,
+      openaiAttempted: false,
+      fallbackReason: "missing_api_key",
+    };
+  } else {
+    try {
+      const llmResult = await analyzeWithOpenAI(rawMessages, userGoals);
+      const parsed = analysisResultSchema.safeParse(llmResult);
+
+      if (parsed.success) {
+        result = parsed.data;
+        diagnostics = {
+          engine: "openai",
+          model: ANALYSIS_MODEL,
+          openaiAttempted: true,
+        };
+      } else {
+        diagnostics = {
+          engine: "fallback",
+          model: FALLBACK_ANALYSIS_MODEL,
+          openaiAttempted: true,
+          fallbackReason: "invalid_openai_response",
+        };
+      }
+    } catch {
+      diagnostics = {
+        engine: "fallback",
+        model: FALLBACK_ANALYSIS_MODEL,
+        openaiAttempted: true,
+        fallbackReason: "openai_request_failed",
+      };
+    }
+  }
+
+  result ??= analysisResultSchema.parse(fallback);
+
+  return finalizeAnalysisResult({
+    ...result,
+    analysisDiagnostics: diagnostics,
+  });
 }
