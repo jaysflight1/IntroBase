@@ -31,7 +31,10 @@ export function LandingActions({
         </Link>
         <Link
           href="/app/import?sample=1"
-          className="hidden text-sm font-medium text-muted-foreground transition-colors hover:text-foreground sm:inline-flex"
+          className={cn(
+            buttonVariants({ variant: "outline", size: "sm" }),
+            "hidden sm:inline-flex",
+          )}
           onClick={() =>
             void logEvent("clicked_cta", { cta: "view_sample_demo" })
           }
@@ -60,8 +63,9 @@ export function LandingActions({
       <Link
         href="/app/import?sample=1"
         className={cn(
-          "text-sm font-medium text-muted-foreground transition-colors hover:text-foreground",
-          inverted && "text-background/75 hover:text-background",
+          buttonVariants({ variant: "outline", size: "lg" }),
+          inverted &&
+            "border-background/30 bg-transparent text-background hover:bg-background/10 hover:text-background",
         )}
         onClick={() => void logEvent("clicked_cta", { cta: "view_sample_demo" })}
       >
