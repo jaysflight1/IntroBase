@@ -33,11 +33,19 @@ import { STORAGE_KEYS } from "@/lib/storageKeys";
 import type { ExtractedContact, FollowUp } from "@/types";
 
 export default function ContactsPage() {
-  const [contacts, setContacts] = useState<ExtractedContact[]>(() =>
-    readJson<ExtractedContact[]>(STORAGE_KEYS.savedContacts, []),
-  );
+  const [contacts, setContacts] = useState<ExtractedContact[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [note, setNote] = useState("");
+
+  useEffect(() => {
+    void Promise.resolve().then(() => {
+      const stored = readJson<ExtractedContact[]>(
+        STORAGE_KEYS.savedContacts,
+        [],
+      );
+      if (stored.length > 0) setContacts(stored);
+    });
+  }, []);
 
   useEffect(() => {
     let active = true;

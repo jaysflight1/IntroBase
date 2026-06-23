@@ -69,9 +69,14 @@ function formatFollowUpDate(date: string) {
 }
 
 export default function FollowUpsPage() {
-  const [followups, setFollowups] = useState<FollowUp[]>(() =>
-    readJson<FollowUp[]>(STORAGE_KEYS.followups, []),
-  );
+  const [followups, setFollowups] = useState<FollowUp[]>([]);
+
+  useEffect(() => {
+    void Promise.resolve().then(() => {
+      const stored = readJson<FollowUp[]>(STORAGE_KEYS.followups, []);
+      if (stored.length > 0) setFollowups(stored);
+    });
+  }, []);
 
   useEffect(() => {
     let active = true;

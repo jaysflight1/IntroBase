@@ -33,11 +33,10 @@ function ImportView() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const shouldLoadSample = searchParams.get("sample") === "1";
-  const [rawMessages, setRawMessages] = useState(() =>
-    shouldLoadSample
-      ? sampleInbox
-      : readJson<string>(STORAGE_KEYS.importDraft, ""),
+  const [rawMessages, setRawMessages] = useState(
+    shouldLoadSample ? sampleInbox : "",
   );
+  const [draftReady, setDraftReady] = useState(shouldLoadSample);
   const [prioritize, setPrioritize] = useState<string[]>([
     "Investors",
     "Customers/users",
@@ -63,8 +62,20 @@ function ImportView() {
   }, [shouldLoadSample]);
 
   useEffect(() => {
+    if (shouldLoadSample) return;
+
+    void Promise.resolve().then(() => {
+      const stored = readJson<string>(STORAGE_KEYS.importDraft, "");
+      if (stored) setRawMessages(stored);
+      setDraftReady(true);
+    });
+  }, [shouldLoadSample]);
+
+  useEffect(() => {
+    if (!draftReady) return;
+
     writeJson(STORAGE_KEYS.importDraft, rawMessages);
-  }, [rawMessages]);
+  }, [draftReady, rawMessages]);
 
   function toggleGoal(goal: string) {
     setPrioritize((current) =>

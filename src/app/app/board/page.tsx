@@ -53,15 +53,19 @@ import type {
 } from "@/types";
 
 export default function BoardPage() {
-  const [analysis, setAnalysis] = useState<AnalysisResult | null>(() => {
-    const stored = readJson<AnalysisResult | null>(
-      STORAGE_KEYS.currentAnalysis,
-      null,
-    );
-    return stored ? migrateAnalysisResult(stored) : null;
-  });
+  const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [selected, setSelected] = useState<AnalyzedMessage | null>(null);
   const [sourceFilter, setSourceFilter] = useState("all");
+
+  useEffect(() => {
+    void Promise.resolve().then(() => {
+      const stored = readJson<AnalysisResult | null>(
+        STORAGE_KEYS.currentAnalysis,
+        null,
+      );
+      if (stored) setAnalysis(migrateAnalysisResult(stored));
+    });
+  }, []);
 
   useEffect(() => {
     void logEvent("viewed_board");
