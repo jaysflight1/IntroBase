@@ -1,4 +1,5 @@
 import type { JSX } from "react";
+import Image from "next/image";
 import Link from "next/link";
 
 import { cn } from "@/lib/utils";
@@ -16,8 +17,15 @@ export function BrandMark({ className }: LogoLinkProps): JSX.Element {
         className,
       )}
     >
-      <span className="flex size-7 items-center justify-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
-        In
+      <span className="flex size-7 shrink-0 items-center justify-center">
+        <Image
+          src="/ib-logo.png"
+          alt=""
+          width={326}
+          height={330}
+          className="size-7 object-contain"
+          aria-hidden="true"
+        />
       </span>
       <span className="text-[15px] font-semibold tracking-tight text-foreground">
         Introbase
