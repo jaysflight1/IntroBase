@@ -130,10 +130,153 @@ export function getTimingLabel(urgency: Urgency): string {
   return getTimingVisual(urgency).label;
 }
 
+interface ParsedDeadline {
+  label: string;
+  suffix: string;
+}
+
 function normalizeDeadlineLabel(deadline: string | undefined): string {
   const label = deadline?.trim() ?? "";
   if (label.toLowerCase() === "check message deadline") return "";
   return label;
+}
+
+const deadlineTarget =
+  "(?:noon|midnight|eod|end of day|today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?:\\s+(?:at\\s+)?\\d{1,2}(?::\\d{2})?\\s*(?:a\\.?m\\.?|p\\.?m\\.?)?(?:\\s*(?:pt|et|ct|mt|pst|est|cst|mst|utc))?)?";
+
+function titleCaseWord(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+}
+
+function messageBody(text: string): string {
+  return text
+    .replace(/^Source:.+$/gim, "")
+    .replace(/^From:.+$/gim, "")
+    .replace(/^Message:\s*/gim, "")
+    .trim();
+}
+
+function normalizeDeadlineTarget(value: string): string {
+  return value
+    .replace(/\bend of day\b/i, "EOD")
+    .replace(/\beod\b/i, "EOD")
+    .replace(/\ba\.?m\.?\b/gi, "AM")
+    .replace(/\bp\.?m\.?\b/gi, "PM")
+    .replace(/\b(pt|et|ct|mt|pst|est|cst|mst|utc)\b/gi, (zone) =>
+      zone.toUpperCase(),
+    )
+    .replace(
+      /\b(noon|midnight|today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/gi,
+      (word) => titleCaseWord(word),
+    )
+    .replace(/\s+at\s+/i, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function actionDeadlineSuffix(target: string): string {
+  if (/^(Noon|Midnight|Today|Tomorrow)$/i.test(target)) {
+    return `by ${target.toLowerCase()}`;
+  }
+  return `by ${target}`;
+}
+
+function parseDeadline(text: string): ParsedDeadline | null {
+  const body = messageBody(text);
+  const patterns = [
+    new RegExp(`\\bby\\s+(${deadlineTarget})\\b`, "i"),
+    new RegExp(`\\bbefore\\s+(${deadlineTarget})\\b`, "i"),
+    new RegExp(`\\bdue\\s+(?:by\\s+)?(${deadlineTarget})\\b`, "i"),
+    new RegExp(`\\bneeded\\s+(?:by|before)\\s+(${deadlineTarget})\\b`, "i"),
+  ];
+
+  for (const pattern of patterns) {
+    const match = body.match(pattern);
+    if (!match?.[1]) continue;
+
+    const target = normalizeDeadlineTarget(match[1]);
+    return {
+      label: `By ${target}`,
+      suffix: actionDeadlineSuffix(target),
+    };
+  }
+
+  return null;
+}
+
+function urgencyForDeadline(deadline: ParsedDeadline | null): Urgency | null {
+  if (!deadline) return null;
+  if (/\b(Noon|Midnight|Today|Tomorrow)\b/i.test(deadline.label)) {
+    return "today";
+  }
+  if (/\b(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b/.test(deadline.label)) {
+    return "this_week";
+  }
+  return null;
+}
+
+function sentenceWithDeadline(body: string): string {
+  const sentences = body
+    .split(/[.!?]\s+/)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
+
+  return (
+    sentences.find((sentence) =>
+      /\b(by|before|due|needed)\b|noon|tomorrow|monday|tuesday|wednesday|thursday|friday/i.test(
+        sentence,
+      ),
+    ) ??
+    sentences[0] ??
+    body
+  );
+}
+
+function cleanTaskPhrase(value: string): string {
+  return value
+    .replace(/^reminder:\s*/i, "")
+    .replace(/^(?:a|an|the)\s+/i, "")
+    .replace(/\s+\b(?:by|before|due)\b.*$/i, "")
+    .replace(/\bmaybe\b/gi, "")
+    .replace(/\s+/g, " ")
+    .replace(/^[,;:\s]+|[,;:\s]+$/g, "")
+    .trim();
+}
+
+function taskForMessage(text: string): string {
+  const body = messageBody(text);
+  const sentence = sentenceWithDeadline(body);
+
+  if (/\bneed this (?:done|finished|completed)\b/i.test(sentence)) {
+    return "Finish this";
+  }
+
+  const dueSubject = sentence.match(
+    /\b(?:the\s+)?([^.!?]{3,80}?)\s+(?:is|are)\s+due\s+(?:by|before)\b/i,
+  )?.[1];
+  if (dueSubject) return `Complete the ${cleanTaskPhrase(dueSubject)}`;
+
+  const ask = sentence.match(
+    /\b(?:can you|could you|please|would you|i need you to|we need you to|need you to)\s+([^.!?]+?)(?:\s+\b(?:by|before|due)\b|$)/i,
+  )?.[1];
+  if (ask) return cleanTaskPhrase(ask);
+
+  const verbTask = sentence.match(
+    /\b(send|submit|complete|finish|review|share|confirm|verify|upload|test|try|schedule|fix|check)\b([^.!?]{0,90})/i,
+  );
+  if (verbTask) return cleanTaskPhrase(`${verbTask[1]}${verbTask[2]}`);
+
+  return "Reply with the next step";
+}
+
+function sentenceCase(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return trimmed;
+  return `${trimmed.charAt(0).toUpperCase()}${trimmed.slice(1)}`;
+}
+
+function actionForDeadline(text: string, deadline: ParsedDeadline): string {
+  return `${sentenceCase(taskForMessage(text))} ${deadline.suffix}.`;
 }
 
 export function getMessageTimingLabel(
@@ -175,10 +318,18 @@ export function getTimingDotClass(urgency: Urgency): string {
 }
 
 export function syncMessageTiming(message: AnalyzedMessage): AnalyzedMessage {
-  const urgency = migrateUrgency(message.urgency);
+  const deadline = parseDeadline(message.originalText);
+  const urgency = urgencyForDeadline(deadline) ?? migrateUrgency(message.urgency);
+  const normalizedDeadline =
+    normalizeDeadlineLabel(message.deadline) || deadline?.label || "";
+
   return {
     ...message,
-    deadline: normalizeDeadlineLabel(message.deadline),
+    deadline: normalizedDeadline,
+    suggestedAction:
+      deadline && hasGenericNextStep(message.suggestedAction)
+        ? actionForDeadline(message.originalText, deadline)
+        : message.suggestedAction,
     urgency,
     priority: urgencyToPriority(urgency),
   };

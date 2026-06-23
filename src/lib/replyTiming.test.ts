@@ -61,4 +61,25 @@ describe("reply timing helpers", () => {
 
     expect(migrated.contacts[0].nextStep).toBe("Send the report by Monday.");
   });
+
+  it("infers missing deadline labels from existing message text", () => {
+    const migrated = migrateAnalysisResult({
+      ...baseResult,
+      messages: [
+        {
+          ...baseResult.messages[0],
+          originalText: "Message: I need this done by noon.",
+          urgency: "this_month",
+          deadline: "",
+          suggestedAction: "Reply today with a clear next step.",
+        },
+      ],
+    });
+
+    expect(migrated.messages[0]).toMatchObject({
+      urgency: "today",
+      deadline: "By Noon",
+      suggestedAction: "Finish this by noon.",
+    });
+  });
 });
