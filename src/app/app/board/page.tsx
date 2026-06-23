@@ -38,6 +38,7 @@ import {
   getTimingBadgeClass,
   getTimingCardClass,
   getTimingLabel,
+  getMessageTimingLabel,
   migrateAnalysisResult,
   REPLY_TIMINGS,
   syncMessageTiming,
@@ -365,7 +366,7 @@ export default function BoardPage() {
                           getTimingBadgeClass(message.urgency),
                         )}
                       >
-                        {getTimingLabel(message.urgency)}
+                        {getMessageTimingLabel(message)}
                       </span>
                     </div>
                     <p className="mt-2 line-clamp-2 text-sm leading-5 text-foreground/80">
@@ -405,7 +406,7 @@ export default function BoardPage() {
                     getTimingBadgeClass(selected.urgency),
                   )}
                 >
-                  {getTimingLabel(selected.urgency)}
+                  {getMessageTimingLabel(selected)}
                 </span>
                 <Badge variant="outline" className="capitalize">
                   {selected.category}

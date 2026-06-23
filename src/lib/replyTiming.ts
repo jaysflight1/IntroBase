@@ -130,6 +130,18 @@ export function getTimingLabel(urgency: Urgency): string {
   return getTimingVisual(urgency).label;
 }
 
+function normalizeDeadlineLabel(deadline: string | undefined): string {
+  const label = deadline?.trim() ?? "";
+  if (label.toLowerCase() === "check message deadline") return "";
+  return label;
+}
+
+export function getMessageTimingLabel(
+  message: Pick<AnalyzedMessage, "deadline" | "urgency">,
+): string {
+  return normalizeDeadlineLabel(message.deadline) || getTimingLabel(message.urgency);
+}
+
 export function getTimingBadgeClass(urgency: Urgency): string {
   return getTimingVisual(urgency).badge;
 }
@@ -166,9 +178,21 @@ export function syncMessageTiming(message: AnalyzedMessage): AnalyzedMessage {
   const urgency = migrateUrgency(message.urgency);
   return {
     ...message,
+    deadline: normalizeDeadlineLabel(message.deadline),
     urgency,
     priority: urgencyToPriority(urgency),
   };
+}
+
+function hasGenericNextStep(nextStep: string): boolean {
+  return [
+    "reply today with a clear next step.",
+    "reply this week after the highest-priority items.",
+    "reply this week or schedule a follow-up.",
+    "reply this week after the most time-sensitive messages.",
+    "follow up this month when you have bandwidth.",
+    "archive, ignore, or handle after higher-priority messages.",
+  ].includes(nextStep.trim().toLowerCase());
 }
 
 export function migrateAnalysisResult(result: AnalysisResult): AnalysisResult {
@@ -176,14 +200,23 @@ export function migrateAnalysisResult(result: AnalysisResult): AnalysisResult {
   return {
     ...result,
     messages,
-    contacts: result.contacts.map((contact) => ({
-      ...contact,
-      priority: urgencyToPriority(
-        migrateUrgency(
-          messages.find((message) => message.senderName === contact.name)
-            ?.urgency ?? priorityToUrgency(contact.priority),
+    contacts: result.contacts.map((contact) => {
+      const matchingMessage = messages.find(
+        (message) => message.senderName === contact.name,
+      );
+
+      return {
+        ...contact,
+        nextStep:
+          matchingMessage && hasGenericNextStep(contact.nextStep)
+            ? matchingMessage.suggestedAction
+            : contact.nextStep,
+        priority: urgencyToPriority(
+          migrateUrgency(
+            matchingMessage?.urgency ?? priorityToUrgency(contact.priority),
+          ),
         ),
-      ),
-    })),
+      };
+    }),
   };
 }

@@ -29,6 +29,14 @@ function field(block: string, label: string): string {
   return match?.[1]?.trim() ?? "";
 }
 
+function messageBody(block: string): string {
+  return block
+    .replace(/^Source:.+$/gim, "")
+    .replace(/^From:.+$/gim, "")
+    .replace(/^Message:\s*/gim, "")
+    .trim();
+}
+
 function classify(text: string): {
   category: MessageCategory;
   urgency: Urgency;
@@ -117,11 +125,7 @@ function classify(text: string): {
 }
 
 function summarize(message: string): string {
-  const cleaned = message
-    .replace(/^Source:.+$/gim, "")
-    .replace(/^From:.+$/gim, "")
-    .replace(/^Message:\s*/gim, "")
-    .trim();
+  const cleaned = messageBody(message);
 
   if (cleaned.length <= 140) return cleaned;
   return `${cleaned.slice(0, 137).trim()}...`;
@@ -140,10 +144,176 @@ function todayBudget(messageCount: number): number {
   return Math.ceil(messageCount * 0.35);
 }
 
-function suggestedActionFor(urgency: Urgency): string {
+interface DeadlineInsight {
+  label: string;
+  suffix: string;
+}
+
+const deadlineTarget =
+  "(?:noon|midnight|eod|end of day|today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?:\\s+(?:at\\s+)?\\d{1,2}(?::\\d{2})?\\s*(?:a\\.?m\\.?|p\\.?m\\.?)?(?:\\s*(?:pt|et|ct|mt|pst|est|cst|mst|utc))?)?";
+
+function titleCaseWord(value: string): string {
+  return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+}
+
+function normalizeDeadlineTarget(value: string): string {
+  return value
+    .replace(/\bend of day\b/i, "EOD")
+    .replace(/\beod\b/i, "EOD")
+    .replace(/\ba\.?m\.?\b/gi, "AM")
+    .replace(/\bp\.?m\.?\b/gi, "PM")
+    .replace(/\b(pt|et|ct|mt|pst|est|cst|mst|utc)\b/gi, (zone) =>
+      zone.toUpperCase(),
+    )
+    .replace(/\b(noon|midnight|today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/gi, (word) =>
+      titleCaseWord(word),
+    )
+    .replace(/\s+at\s+/i, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function actionDeadlineSuffix(target: string): string {
+  if (/^(Noon|Midnight|Today|Tomorrow)$/i.test(target)) {
+    return `by ${target.toLowerCase()}`;
+  }
+  return `by ${target}`;
+}
+
+function parseDeadline(text: string): DeadlineInsight | null {
+  const body = messageBody(text);
+  const patterns = [
+    new RegExp(`\\bby\\s+(${deadlineTarget})\\b`, "i"),
+    new RegExp(`\\bbefore\\s+(${deadlineTarget})\\b`, "i"),
+    new RegExp(`\\bdue\\s+(?:by\\s+)?(${deadlineTarget})\\b`, "i"),
+    new RegExp(`\\bneeded\\s+(?:by|before)\\s+(${deadlineTarget})\\b`, "i"),
+  ];
+
+  for (const pattern of patterns) {
+    const match = body.match(pattern);
+    if (!match?.[1]) continue;
+
+    const target = normalizeDeadlineTarget(match[1]);
+    return {
+      label: `By ${target}`,
+      suffix: actionDeadlineSuffix(target),
+    };
+  }
+
+  return null;
+}
+
+function sentenceWithDeadline(body: string): string {
+  const sentences = body
+    .split(/[.!?]\s+/)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
+
+  return (
+    sentences.find((sentence) =>
+      /\b(by|before|due|needed)\b|noon|tomorrow|monday|tuesday|wednesday|thursday|friday/i.test(
+        sentence,
+      ),
+    ) ??
+    sentences[0] ??
+    body
+  );
+}
+
+function cleanTaskPhrase(value: string): string {
+  return value
+    .replace(/^reminder:\s*/i, "")
+    .replace(/^(?:a|an|the)\s+/i, "")
+    .replace(/\s+\b(?:by|before|due)\b.*$/i, "")
+    .replace(/\bmaybe\b/gi, "")
+    .replace(/\s+/g, " ")
+    .replace(/^[,;:\s]+|[,;:\s]+$/g, "")
+    .trim();
+}
+
+function urgencyForDeadline(deadline: DeadlineInsight | null): Urgency | null {
+  if (!deadline) return null;
+  if (/\b(Noon|Midnight|Today|Tomorrow)\b/i.test(deadline.label)) {
+    return "today";
+  }
+  if (/\b(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b/.test(deadline.label)) {
+    return "this_week";
+  }
+  return null;
+}
+
+function toSentence(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return trimmed;
+  return `${trimmed.charAt(0).toUpperCase()}${trimmed.slice(1)}.`;
+}
+
+function taskForMessage(text: string): string {
+  const body = messageBody(text);
+  const sentence = sentenceWithDeadline(body);
+
+  if (/\bneed this (?:done|finished|completed)\b/i.test(sentence)) {
+    return "Finish this";
+  }
+
+  const requestedObject = sentence.match(
+    /\b(?:asked|asking)\s+for\s+(?:a\s+|an\s+|the\s+)?([^.!?]+?)(?:\s+\b(?:by|before|due)\b|$)/i,
+  )?.[1];
+  if (requestedObject) {
+    return `Send the ${cleanTaskPhrase(requestedObject)}`;
+  }
+
+  const dueSubject = sentence.match(
+    /\b(?:the\s+)?([^.!?]{3,80}?)\s+(?:is|are)\s+due\s+(?:by|before)\b/i,
+  )?.[1];
+  if (dueSubject) {
+    return `Complete the ${cleanTaskPhrase(dueSubject)}`;
+  }
+
+  const ask = sentence.match(
+    /\b(?:can you|could you|please|would you|i need you to|we need you to|need you to)\s+([^.!?]+?)(?:\s+\b(?:by|before|due)\b|$)/i,
+  )?.[1];
+  if (ask) {
+    const task = cleanTaskPhrase(ask);
+    if (/^send\b/i.test(task)) return task;
+    return task;
+  }
+
+  const verbTask = sentence.match(
+    /\b(send|submit|complete|finish|review|share|confirm|verify|upload|test|try|schedule|fix|check)\b([^.!?]{0,90})/i,
+  );
+  if (verbTask) {
+    return cleanTaskPhrase(`${verbTask[1]}${verbTask[2]}`);
+  }
+
+  if (/deck/i.test(body)) return "Send the deck and propose meeting times";
+  if (/\b(pilot|try|test)\b/i.test(body)) return "Help them try Introbase";
+  if (/\bmeet|talk|call\b/i.test(body)) return "Schedule the conversation";
+  if (/\bbug\b/i.test(body)) return "Triage the reported bug";
+  if (/\brole\b|founding engineer|recruiter/i.test(body)) {
+    return "Reply about whether the role is a fit";
+  }
+
+  return "Reply with the next step";
+}
+
+function suggestedActionFor(
+  urgency: Urgency,
+  text: string,
+  deadline: DeadlineInsight | null,
+): string {
+  if (deadline) {
+    return toSentence(`${taskForMessage(text)} ${deadline.suffix}`);
+  }
+
+  const task = taskForMessage(text);
+  if (task !== "Reply with the next step") return toSentence(task);
+
   if (urgency === "today") return "Reply today with a clear next step.";
   if (urgency === "this_week") return "Reply this week or schedule a follow-up.";
-  if (urgency === "this_month") return "Follow up this month when you have bandwidth.";
+  if (urgency === "this_month") {
+    return "Follow up this month when you have bandwidth.";
+  }
   return "Archive, ignore, or handle after higher-priority messages.";
 }
 
@@ -174,7 +344,7 @@ function applyTodayBudget(messages: AnalyzedMessage[]): AnalyzedMessage[] {
       return syncMessageTiming({
         ...message,
         urgency: "this_week",
-        suggestedAction: "Reply this week after the most time-sensitive messages.",
+        suggestedAction: suggestedActionFor("this_week", message.originalText, null),
         whyItMatters:
           "This is relevant, but it ranks below the most urgent messages in this batch.",
       });
@@ -195,10 +365,12 @@ export function createFallbackAnalysis(
     const from = field(block, "From") || `Sender ${index + 1}`;
     const [senderName, senderOrganization] = from.split(/\s+at\s+/i);
     const classified = classify(block);
+    const deadline = parseDeadline(block);
+    const urgency = urgencyForDeadline(deadline) ?? classified.urgency;
     const summary = summarize(block);
     const followUpDate =
-      classified.urgency === "this_month" || classified.urgency === "later"
-        ? nextBusinessDate(classified.urgency === "later" ? 14 : 7)
+      urgency === "this_month" || urgency === "later"
+        ? nextBusinessDate(urgency === "later" ? 14 : 7)
         : "";
 
     return syncMessageTiming({
@@ -210,11 +382,11 @@ export function createFallbackAnalysis(
       originalText: block,
       summary,
       category: classified.category,
-      priority: urgencyToPriority(classified.urgency),
-      urgency: classified.urgency,
+      priority: urgencyToPriority(urgency),
+      urgency,
       priorityScore: classified.score,
-      deadline: /due|deadline/i.test(block) ? "Check message deadline" : "",
-      suggestedAction: suggestedActionFor(classified.urgency),
+      deadline: deadline?.label ?? "",
+      suggestedAction: suggestedActionFor(urgency, block, deadline),
       suggestedReply:
         classified.urgency === "later"
           ? "Thanks for reaching out. I am focused on a few priorities right now, but I appreciate the note."

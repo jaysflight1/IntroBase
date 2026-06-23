@@ -29,4 +29,45 @@ describe("createFallbackAnalysis", () => {
     expect(lanes.has("this_month")).toBe(true);
     expect(lanes.has("later")).toBe(true);
   });
+
+  it("extracts message-specific deadline badges and next steps", () => {
+    const result = createFallbackAnalysis(
+      `Source: Email
+From: Alex Rivera
+Message: I need this done by noon.
+
+Source: Email
+From: Sam Patel
+Message: Can you send the report by Monday?`,
+      goals,
+    );
+
+    expect(result.messages[0]).toMatchObject({
+      urgency: "today",
+      deadline: "By Noon",
+      suggestedAction: "Finish this by noon.",
+    });
+    expect(result.contacts[0].nextStep).toBe("Finish this by noon.");
+
+    expect(result.messages[1]).toMatchObject({
+      deadline: "By Monday",
+      suggestedAction: "Send the report by Monday.",
+    });
+    expect(result.contacts[1].nextStep).toBe("Send the report by Monday.");
+  });
+
+  it("uses exact due times in deadline-specific actions", () => {
+    const result = createFallbackAnalysis(
+      `Source: Email
+From: Design Partner Program
+Message: Reminder: the design partner intake form is due by Friday at 5 PM PT if you want to be included.`,
+      goals,
+    );
+
+    expect(result.messages[0]).toMatchObject({
+      deadline: "By Friday 5 PM PT",
+      suggestedAction:
+        "Complete the design partner intake form by Friday 5 PM PT.",
+    });
+  });
 });
