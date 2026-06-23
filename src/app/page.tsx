@@ -9,6 +9,7 @@ import {
 import { LandingActions } from "@/components/LandingActions";
 import { BrandMark } from "@/components/LogoLink";
 import { VisitLogger } from "@/components/VisitLogger";
+import { getCurrentUser } from "@/lib/supabase/server-auth";
 import {
   getTimingBadgeClass,
   getTimingCardClass,
@@ -95,14 +96,17 @@ const steps = [
   },
 ];
 
-export default function Home() {
+export default async function Home() {
+  const user = await getCurrentUser();
+  const isSignedIn = Boolean(user);
+
   return (
     <div className="min-h-screen bg-landing-shell text-foreground">
       <VisitLogger eventName="visited_landing" />
       <header className="sticky top-0 z-40 border-b border-border/60 bg-white/80 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
           <BrandMark />
-          <LandingActions compact />
+          <LandingActions compact isSignedIn={isSignedIn} />
         </div>
       </header>
 
@@ -117,7 +121,7 @@ export default function Home() {
             follow-ups built in.
           </p>
           <div className="mt-8 flex justify-center">
-            <LandingActions />
+            <LandingActions isSignedIn={isSignedIn} />
           </div>
 
           <div className="mt-16 rounded-2xl border border-border/70 bg-card p-2 shadow-xl shadow-primary/5 sm:p-3">
@@ -232,10 +236,12 @@ export default function Home() {
               Stop losing opportunities in your inbox.
             </h2>
             <p className="mx-auto mt-3 max-w-xl text-sm leading-6 opacity-80">
-              Sign in with Google, then try the sample inbox in under a minute.
+              {isSignedIn
+                ? "Open your workspace, or try the sample inbox in under a minute."
+                : "Sign in with Google, then try the sample inbox in under a minute."}
             </p>
             <div className="mt-7 flex justify-center">
-              <LandingActions inverted />
+              <LandingActions inverted isSignedIn={isSignedIn} />
             </div>
           </div>
         </section>

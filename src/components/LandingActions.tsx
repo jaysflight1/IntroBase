@@ -11,23 +11,27 @@ import { cn } from "@/lib/utils";
 interface LandingActionsProps {
   compact?: boolean;
   inverted?: boolean;
+  isSignedIn?: boolean;
 }
 
 export function LandingActions({
   compact = false,
   inverted = false,
+  isSignedIn = false,
 }: LandingActionsProps): JSX.Element {
+  const primaryHref = isSignedIn ? "/app" : "/login";
+  const primaryLabel = isSignedIn ? "Open app" : "Sign in";
+  const primaryCta = isSignedIn ? "open_app" : "continue_with_google";
+
   if (compact) {
     return (
       <div className="flex items-center gap-3">
         <Link
-          href="/login"
+          href={primaryHref}
           className={buttonVariants()}
-          onClick={() =>
-            void logEvent("clicked_cta", { cta: "continue_with_google" })
-          }
+          onClick={() => void logEvent("clicked_cta", { cta: primaryCta })}
         >
-          Sign in
+          {primaryLabel}
         </Link>
         <Link
           href="/app/import?sample=1"
@@ -48,16 +52,14 @@ export function LandingActions({
   return (
     <div className="flex flex-col items-center gap-3 sm:flex-row">
       <Link
-        href="/login"
+        href={primaryHref}
         className={cn(
           buttonVariants({ size: "lg" }),
           "gap-2",
         )}
-        onClick={() =>
-          void logEvent("clicked_cta", { cta: "continue_with_google" })
-        }
+        onClick={() => void logEvent("clicked_cta", { cta: primaryCta })}
       >
-        Sign in
+        {primaryLabel}
         <ArrowRight className="size-4" />
       </Link>
       <Link
