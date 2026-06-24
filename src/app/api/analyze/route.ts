@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
 
 import { analyzePayloadSchema } from "@/lib/apiSchemas";
+import {
+  hasReachedAnalysisLimit,
+  isAnalysisLimitExempt,
+} from "@/lib/analysis/rateLimit";
 import { analyzeRawMessages } from "@/lib/analysis/run";
 import { getSupabaseAdmin } from "@/lib/supabase/server";
+import { getCurrentUser } from "@/lib/supabase/server-auth";
 
 async function logServerEvent(
   eventName: string,
@@ -33,7 +38,7 @@ async function isRateLimited(anonymousUserId: string) {
     .gte("created_at", oneHourAgo);
 
   if (error) return false;
-  return (count ?? 0) >= 5;
+  return hasReachedAnalysisLimit(count);
 }
 
 export async function POST(request: Request) {
@@ -50,8 +55,12 @@ export async function POST(request: Request) {
 
   const { anonymous_user_id, session_id, raw_messages, user_goals } =
     parsed.data;
+  const user = await getCurrentUser();
 
-  if (await isRateLimited(anonymous_user_id)) {
+  if (
+    !isAnalysisLimitExempt(user?.email) &&
+    (await isRateLimited(anonymous_user_id))
+  ) {
     return NextResponse.json(
       { error: "You have reached the beta analysis limit. Try again in an hour." },
       { status: 429 },
