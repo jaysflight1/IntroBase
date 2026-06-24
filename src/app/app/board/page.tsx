@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
-  Activity,
   Archive,
   CheckCircle2,
   Clipboard,
@@ -31,10 +30,6 @@ import {
 } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/EmptyState";
 import { PageHeader } from "@/components/PageHeader";
-import {
-  emptyAnalysisStats,
-  formatAnalyzerLabel,
-} from "@/lib/analysis/diagnostics";
 import { readJson, writeJson } from "@/lib/browserStorage";
 import { logEvent } from "@/lib/logEvent";
 import { makeClientId } from "@/lib/normalize";
@@ -54,7 +49,6 @@ import {
 import { cn } from "@/lib/utils";
 import type {
   AnalysisResult,
-  AnalysisDiagnosticsStats,
   AnalyzedMessage,
   ExtractedContact,
   FollowUp,
@@ -62,8 +56,6 @@ import type {
 
 export default function BoardPage() {
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
-  const [analysisStats, setAnalysisStats] =
-    useState<AnalysisDiagnosticsStats>(emptyAnalysisStats);
   const [selected, setSelected] = useState<AnalyzedMessage | null>(null);
   const [sourceFilter, setSourceFilter] = useState("all");
 
@@ -74,12 +66,6 @@ export default function BoardPage() {
         null,
       );
       if (stored) setAnalysis(migrateAnalysisResult(stored));
-      setAnalysisStats(
-        readJson<AnalysisDiagnosticsStats>(
-          STORAGE_KEYS.analysisDiagnosticsStats,
-          emptyAnalysisStats,
-        ),
-      );
     });
   }, []);
 
@@ -338,23 +324,6 @@ export default function BoardPage() {
           </>
         }
       />
-
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border/70 bg-muted/40 px-4 py-3 text-sm">
-        <div className="flex min-w-0 items-center gap-2">
-          <Activity className="size-4 shrink-0 text-muted-foreground" />
-          <span className="font-medium">Analysis check</span>
-          <span className="truncate text-muted-foreground">
-            {formatAnalyzerLabel(analysis.analysisDiagnostics)}
-          </span>
-        </div>
-        <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-          <span className="tabular-nums">{analysisStats.totalRuns} total</span>
-          <span className="tabular-nums">{analysisStats.openaiRuns} GPT</span>
-          <span className="tabular-nums">
-            {analysisStats.fallbackRuns} basic parser
-          </span>
-        </div>
-      </div>
 
       <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-4">
         {grouped.map((column) => {

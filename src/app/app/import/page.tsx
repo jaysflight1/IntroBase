@@ -4,7 +4,6 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import type { DragEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
-  Activity,
   CheckCircle2,
   GripVertical,
   Loader2,
@@ -21,7 +20,6 @@ import { defaultGoalOptions, sampleInbox } from "@/data/sampleInbox";
 import { getAnonymousUserId, getSessionId } from "@/lib/anonymousUser";
 import {
   emptyAnalysisStats,
-  formatAnalyzerLabel,
   recordAnalysisRun,
 } from "@/lib/analysis/diagnostics";
 import { readJson, writeJson } from "@/lib/browserStorage";
@@ -582,7 +580,7 @@ function ImportView() {
       writeJson(STORAGE_KEYS.previousImportMessages, nextPrevious);
       setActiveMessages(finalActive);
       setPreviousMessages(nextPrevious);
-      toast.success(formatAnalyzerLabel(combined.analysisDiagnostics));
+      toast.success("Messages analyzed");
       router.push("/app/board");
     } catch (error) {
       toast.error(
@@ -744,53 +742,6 @@ function ImportView() {
         </div>
 
         <aside className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Activity className="size-4 text-muted-foreground" />
-                Analysis check
-              </CardTitle>
-              <CardDescription>
-                Local GPT vs basic parser counts for this browser.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              <div className="rounded-lg border border-border/80 bg-muted/30 px-3 py-2">
-                <p className="text-xs font-medium uppercase text-muted-foreground">
-                  Last run
-                </p>
-                <p className="mt-1 font-medium">
-                  {formatAnalyzerLabel(analysisStats.last)}
-                </p>
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                <div className="rounded-lg border border-border/80 px-3 py-2">
-                  <p className="text-xs text-muted-foreground">Total</p>
-                  <p className="text-lg font-semibold tabular-nums">
-                    {analysisStats.totalRuns}
-                  </p>
-                </div>
-                <div className="rounded-lg border border-border/80 px-3 py-2">
-                  <p className="text-xs text-muted-foreground">GPT</p>
-                  <p className="text-lg font-semibold tabular-nums">
-                    {analysisStats.openaiRuns}
-                  </p>
-                </div>
-                <div className="rounded-lg border border-border/80 px-3 py-2">
-                  <p className="text-xs text-muted-foreground">Basic</p>
-                  <p className="text-lg font-semibold tabular-nums">
-                    {analysisStats.fallbackRuns}
-                  </p>
-                </div>
-              </div>
-              <p className="text-xs leading-5 text-muted-foreground">
-                Basic parser reasons: {analysisStats.missingApiKeyRuns} missing
-                key, {analysisStats.requestFailedRuns} request failed,{" "}
-                {analysisStats.invalidResponseRuns} invalid response.
-              </p>
-            </CardContent>
-          </Card>
-
           <Card>
             <CardHeader>
               <CardTitle>Prioritization</CardTitle>
