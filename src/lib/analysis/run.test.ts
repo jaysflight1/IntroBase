@@ -63,51 +63,59 @@ describe("analyzeRawMessages diagnostics", () => {
 
   it("reports GPT usage when the response is valid", async () => {
     process.env.OPENAI_API_KEY = "test_key";
-    vi.stubGlobal(
-      "fetch",
-      vi.fn().mockResolvedValue(
-        Response.json({
-          choices: [
-            {
-              message: {
-                content: JSON.stringify({
-                  messages: [
-                    {
-                      id: "msg_1",
-                      source: "Email",
-                      senderName: "Maya Chen",
-                      originalText: rawMessages,
-                      summary: "Maya needs the pilot report by Monday.",
-                      category: "customer",
-                      priority: "medium",
-                      urgency: "this_week",
-                      priorityScore: 72,
-                      deadline: "By Monday",
-                      suggestedAction: "Send the pilot report by Monday.",
-                      suggestedReply: "Thanks, I will send it by Monday.",
-                      whyItMatters: "Potential customer request.",
-                      contactTags: ["customer"],
-                      status: "new",
-                    },
-                  ],
-                  contacts: [],
-                  sourceTypes: ["Email"],
-                  categoryCounts: { customer: 1 },
-                  messageCount: 1,
-                }),
-              },
+    const fetchMock = vi.fn().mockResolvedValue(
+      Response.json({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({
+                messages: [
+                  {
+                    id: "msg_1",
+                    source: "Email",
+                    senderName: "Maya Chen",
+                    originalText: rawMessages,
+                    summary: "Maya needs the pilot report by Monday.",
+                    category: "customer",
+                    priority: "medium",
+                    urgency: "this_week",
+                    priorityScore: 72,
+                    deadline: "By Monday",
+                    suggestedAction: "Send the pilot report by Monday.",
+                    suggestedReply: "Thanks, I will send it by Monday.",
+                    whyItMatters: "Potential customer request.",
+                    contactTags: ["customer"],
+                    status: "new",
+                  },
+                ],
+                contacts: [],
+                sourceTypes: ["Email"],
+                categoryCounts: { customer: 1 },
+                messageCount: 1,
+              }),
             },
-          ],
-        }),
-      ),
+          },
+        ],
+      }),
     );
+    vi.stubGlobal("fetch", fetchMock);
 
     const result = await analyzeRawMessages(rawMessages, goals);
+    const requestBody = JSON.parse(String(fetchMock.mock.calls[0][1]?.body)) as {
+      response_format?: {
+        type?: string;
+        json_schema?: { strict?: boolean };
+      };
+    };
 
     expect(result.analysisDiagnostics).toEqual({
       engine: "openai",
       model: ANALYSIS_MODEL,
       openaiAttempted: true,
+    });
+    expect(requestBody.response_format).toMatchObject({
+      type: "json_schema",
+      json_schema: { strict: true },
     });
   });
 });

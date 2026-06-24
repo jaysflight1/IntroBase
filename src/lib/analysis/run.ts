@@ -12,6 +12,158 @@ import type {
 export const ANALYSIS_MODEL = "gpt-4.1-mini";
 export const FALLBACK_ANALYSIS_MODEL = "local_fallback";
 
+const analysisResponseFormat = {
+  type: "json_schema",
+  json_schema: {
+    name: "introbase_analysis_result",
+    strict: true,
+    schema: {
+      type: "object",
+      additionalProperties: false,
+      required: [
+        "messages",
+        "contacts",
+        "sourceTypes",
+        "categoryCounts",
+        "messageCount",
+      ],
+      properties: {
+        messages: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: [
+              "id",
+              "source",
+              "senderName",
+              "senderOrganization",
+              "senderRole",
+              "originalText",
+              "summary",
+              "category",
+              "priority",
+              "urgency",
+              "priorityScore",
+              "deadline",
+              "suggestedAction",
+              "suggestedReply",
+              "whyItMatters",
+              "followUpDate",
+              "contactTags",
+              "status",
+            ],
+            properties: {
+              id: { type: "string" },
+              source: { type: "string" },
+              senderName: { type: "string" },
+              senderOrganization: { type: "string" },
+              senderRole: { type: "string" },
+              originalText: { type: "string" },
+              summary: { type: "string" },
+              category: {
+                type: "string",
+                enum: [
+                  "investor",
+                  "customer",
+                  "hiring",
+                  "collaborator",
+                  "mentor",
+                  "school",
+                  "personal",
+                  "application",
+                  "sales",
+                  "spam",
+                  "other",
+                ],
+              },
+              priority: { type: "string", enum: ["high", "medium", "low"] },
+              urgency: {
+                type: "string",
+                enum: ["today", "this_week", "this_month", "later", "ignore"],
+              },
+              priorityScore: { type: "number" },
+              deadline: { type: "string" },
+              suggestedAction: { type: "string" },
+              suggestedReply: { type: "string" },
+              whyItMatters: { type: "string" },
+              followUpDate: { type: "string" },
+              contactTags: { type: "array", items: { type: "string" } },
+              status: {
+                type: "string",
+                enum: ["new", "replied", "follow_up", "ignored"],
+              },
+            },
+          },
+        },
+        contacts: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            required: [
+              "id",
+              "name",
+              "organization",
+              "role",
+              "source",
+              "tags",
+              "lastInteractionSummary",
+              "priority",
+              "nextStep",
+              "lastInteractionAt",
+            ],
+            properties: {
+              id: { type: "string" },
+              name: { type: "string" },
+              organization: { type: "string" },
+              role: { type: "string" },
+              source: { type: "string" },
+              tags: { type: "array", items: { type: "string" } },
+              lastInteractionSummary: { type: "string" },
+              priority: { type: "string", enum: ["high", "medium", "low"] },
+              nextStep: { type: "string" },
+              lastInteractionAt: { type: "string" },
+            },
+          },
+        },
+        sourceTypes: { type: "array", items: { type: "string" } },
+        categoryCounts: {
+          type: "object",
+          additionalProperties: false,
+          required: [
+            "investor",
+            "customer",
+            "hiring",
+            "collaborator",
+            "mentor",
+            "school",
+            "personal",
+            "application",
+            "sales",
+            "spam",
+            "other",
+          ],
+          properties: {
+            investor: { type: "number" },
+            customer: { type: "number" },
+            hiring: { type: "number" },
+            collaborator: { type: "number" },
+            mentor: { type: "number" },
+            school: { type: "number" },
+            personal: { type: "number" },
+            application: { type: "number" },
+            sales: { type: "number" },
+            spam: { type: "number" },
+            other: { type: "number" },
+          },
+        },
+        messageCount: { type: "number" },
+      },
+    },
+  },
+} as const;
+
 async function analyzeWithOpenAI(rawMessages: string, userGoals: UserGoals) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) return null;
@@ -25,7 +177,7 @@ async function analyzeWithOpenAI(rawMessages: string, userGoals: UserGoals) {
     body: JSON.stringify({
       model: ANALYSIS_MODEL,
       temperature: 0.2,
-      response_format: { type: "json_object" },
+      response_format: analysisResponseFormat,
       messages: [
         {
           role: "system",
@@ -115,6 +267,16 @@ export async function analyzeRawMessages(
           openaiAttempted: true,
           fallbackReason: "invalid_openai_response",
         };
+        if (process.env.NODE_ENV !== "production") {
+          console.warn(
+            "OpenAI analysis response failed schema validation",
+            parsed.error.issues.map((issue) => ({
+              path: issue.path.join("."),
+              code: issue.code,
+              message: issue.message,
+            })),
+          );
+        }
       }
     } catch {
       diagnostics = {
