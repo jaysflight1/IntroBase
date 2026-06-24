@@ -23,12 +23,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { EmptyState } from "@/components/EmptyState";
 import { PageHeader } from "@/components/PageHeader";
 import {
@@ -435,10 +435,10 @@ export default function BoardPage() {
         })}
       </div>
 
-      <Sheet open={Boolean(selected)} onOpenChange={() => setSelected(null)}>
+      <Dialog open={Boolean(selected)} onOpenChange={() => setSelected(null)}>
         {selected ? (
-          <SheetContent className="w-full overflow-y-auto sm:max-w-xl">
-            <SheetHeader>
+          <DialogContent className="max-h-[min(760px,calc(100vh-2rem))] overflow-y-auto p-5 sm:max-w-2xl">
+            <DialogHeader className="pr-8">
               <div className="flex flex-wrap items-center gap-2">
                 <span
                   className={cn(
@@ -455,17 +455,17 @@ export default function BoardPage() {
                   <Badge variant="outline">{selected.source}</Badge>
                 ) : null}
               </div>
-              <SheetTitle className="mt-1 text-lg">
+              <DialogTitle className="mt-1 text-lg leading-6">
                 {selected.senderName}
-              </SheetTitle>
+              </DialogTitle>
               {selected.senderRole || selected.senderOrganization ? (
-                <SheetDescription>
+                <DialogDescription>
                   {[selected.senderRole, selected.senderOrganization]
                     .filter(Boolean)
                     .join(" · ")}
-                </SheetDescription>
+                </DialogDescription>
               ) : null}
-            </SheetHeader>
+            </DialogHeader>
             <div className="mt-6 space-y-6">
               <section>
                 <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -582,9 +582,9 @@ export default function BoardPage() {
                 </DropdownMenu>
               </div>
             </div>
-          </SheetContent>
+          </DialogContent>
         ) : null}
-      </Sheet>
+      </Dialog>
     </div>
   );
 }
