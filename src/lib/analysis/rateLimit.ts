@@ -1,4 +1,4 @@
-export const ANALYSIS_LIMIT_PER_HOUR = 15;
+export const ANALYSIS_LIMIT_PER_HOUR = 100;
 
 const ANALYSIS_LIMIT_EXEMPT_EMAILS = new Set(["jayrroy1@gmail.com"]);
 

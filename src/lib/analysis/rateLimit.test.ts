@@ -7,10 +7,10 @@ import {
 } from "@/lib/analysis/rateLimit";
 
 describe("analysis rate limit", () => {
-  it("allows up to 15 analyses per hour", () => {
-    expect(ANALYSIS_LIMIT_PER_HOUR).toBe(15);
-    expect(hasReachedAnalysisLimit(14)).toBe(false);
-    expect(hasReachedAnalysisLimit(15)).toBe(true);
+  it("allows up to 100 analyses per hour", () => {
+    expect(ANALYSIS_LIMIT_PER_HOUR).toBe(100);
+    expect(hasReachedAnalysisLimit(99)).toBe(false);
+    expect(hasReachedAnalysisLimit(100)).toBe(true);
   });
 
   it("exempts the configured signed-in user email", () => {
