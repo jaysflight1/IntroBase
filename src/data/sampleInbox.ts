@@ -1,10 +1,22 @@
 export const sampleInbox = `Source: LinkedIn
 From: Maya Chen, Program Director at Northstar Accelerator
-Message: Hey, I saw what you're building and would love to talk about a possible pilot with our accelerator founders. Are you free Thursday or Friday?
+Message: Hey, I saw what you're building and would love to talk about a possible pilot with our accelerator founders. Could you send availability by noon today?
+
+Dear Jaylan,
+
+I followed up earlier about my application but did not hear back. Do you know when we will know whether we were accepted? I need to decide by end of day today.
+
+Best,
+Talya
+Source: Gmail
+
+Source: Email
+From: Design Partner Program
+Message: Reminder: the design partner intake form is due today if you want to be included in the next pilot cohort.
 
 Dear Introbase team,
 
-Your Introbase concept is interesting. Could you send a short deck and maybe meet next week? We invest in founder productivity tools.
+Your concept is interesting. Could you send a short deck by tomorrow and maybe meet after we review it?
 
 Best,
 Daniel Brooks
@@ -13,23 +25,11 @@ Source: Email
 
 Source: Gmail
 From: Priya Nair, Operations Lead at Campus Labs
-Message: We have 80 student founders who miss important sponsor and mentor messages. If your tool can help them prioritize inbound, I would like to test it.
-
-Source: LinkedIn
-From: Calvin Reed
-Message: I help startups get 10x more leads with automated outbound. Want me to send pricing?
-
-Source: Discord
-From: Aria
-Message: The demo you posted in the builder server is clean. I can help with onboarding copy if you want another pair of eyes.
-
-Source: Email
-From: Design Partner Program
-Message: Reminder: the design partner intake form is due by Friday at 5 PM PT if you want to be included in next week's pilot cohort.
+Message: We have 80 student founders who miss important sponsor and mentor messages. If your tool can help them prioritize inbound, I would like to test it within 48 hours.
 
 Dear Jaylan,
 
-I reviewed your landing page. The privacy note is strong, but the main CTA needs to get users into the demo faster. Happy to do 20 minutes tomorrow.
+I reviewed your landing page. The privacy note is strong, but the main CTA needs to get users into the demo faster. Can you send me a revised version within 5 days?
 
 Best,
 Lena Ortiz
@@ -37,23 +37,39 @@ Source: Email
 
 Source: Slack
 From: Jordan at BetaWorks
-Message: Following up on the customer discovery interview. Our team still wants to try the product with real founder inbox snippets.
+Message: Following up on the customer discovery interview. Our team still wants to try the product with real founder inbox snippets next week.
+
+Dear Jaylan,
+
+Can you send the onboarding checklist and founder instructions within 14 days? We want to line up our next cohort.
+
+Best,
+Aria
+Source: Discord
+
+Source: Email
+From: Campus Venture Fellowship
+Message: Your fellowship application is still active. Please upload the optional company update this month if you want it included in committee review.
+
+Dear founder,
+
+I help startups get 10x more leads with automated outbound. Want me to send pricing next month?
+
+Best,
+Calvin Reed
+Source: LinkedIn
 
 Source: Email
 From: Newsletter
 Message: This week in AI: 47 tools you cannot miss, plus a roundup of prompt engineering tips.
 
-Source: Email
-From: Marcus Lee, Recruiter at ScalePath
-Message: Your technical background looks strong. Would you be open to a founding engineer role? Flexible if you are focused on your own company right now.
+Dear Jaylan,
 
-Source: Discord
-From: Theo
-Message: Low stakes, but I found a bug in the sample parsing if two messages have no blank line between them.
+Low stakes, but I wrote up a small bug note in my newsletter after testing an old import. No rush; handle it whenever you have time.
 
-Source: Gmail
-From: Aisha Patel, Founder at RelayDesk
-Message: I am drowning in customer, investor, and candidate emails. If Introbase can rank who to answer first, I would pay for it. Can I try it this week?`;
+Best,
+Theo
+Source: Discord`;
 
 export const defaultGoalOptions = [
   "Investors",

@@ -7,7 +7,12 @@ import type {
   UserGoals,
 } from "@/types";
 
-import { syncMessageTiming, urgencyToPriority } from "@/lib/replyTiming";
+import {
+  getDeadlineDistanceDays,
+  syncMessageTiming,
+  urgencyForDeadlineText,
+  urgencyToPriority,
+} from "@/lib/replyTiming";
 
 function splitMessages(rawMessages: string): string[] {
   const normalized = rawMessages.replace(/\r\n?/g, "\n");
@@ -265,7 +270,7 @@ interface DeadlineInsight {
 }
 
 const deadlineTarget =
-  "(?:noon|midnight|eod|end of day|today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?:\\s+(?:at\\s+)?\\d{1,2}(?::\\d{2})?\\s*(?:a\\.?m\\.?|p\\.?m\\.?)?(?:\\s*(?:pt|et|ct|mt|pst|est|cst|mst|utc))?)?";
+  "(?:noon|midnight|eod|end of day|today|tomorrow|this week|next week|this month|next month|within\\s+\\d+\\s+(?:hours?|days?|weeks?)|(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\\s+\\d{1,2}|\\d{1,2}/\\d{1,2}|monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?:\\s+(?:at\\s+)?\\d{1,2}(?::\\d{2})?\\s*(?:a\\.?m\\.?|p\\.?m\\.?)?(?:\\s*(?:pt|et|ct|mt|pst|est|cst|mst|utc))?)?";
 
 function titleCaseWord(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
@@ -273,6 +278,9 @@ function titleCaseWord(value: string): string {
 
 function normalizeDeadlineTarget(value: string): string {
   return value
+    .replace(/\bwithin\s+(\d+)\s+(hours?|days?|weeks?)\b/gi, (_, amount, unit) =>
+      `Within ${amount} ${titleCaseWord(unit)}`,
+    )
     .replace(/\bend of day\b/i, "EOD")
     .replace(/\beod\b/i, "EOD")
     .replace(/\ba\.?m\.?\b/gi, "AM")
@@ -280,8 +288,12 @@ function normalizeDeadlineTarget(value: string): string {
     .replace(/\b(pt|et|ct|mt|pst|est|cst|mst|utc)\b/gi, (zone) =>
       zone.toUpperCase(),
     )
-    .replace(/\b(noon|midnight|today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/gi, (word) =>
+    .replace(/\b(noon|midnight|today|tomorrow|this week|next week|this month|next month|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/gi, (word) =>
       titleCaseWord(word),
+    )
+    .replace(
+      /\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b/gi,
+      (word) => titleCaseWord(word),
     )
     .replace(/\s+at\s+/i, " ")
     .replace(/\s+/g, " ")
@@ -289,6 +301,9 @@ function normalizeDeadlineTarget(value: string): string {
 }
 
 function actionDeadlineSuffix(target: string): string {
+  if (/^Within\b/i.test(target)) {
+    return target.toLowerCase();
+  }
   if (/^(Noon|Midnight|Today|Tomorrow)$/i.test(target)) {
     return `by ${target.toLowerCase()}`;
   }
@@ -302,6 +317,7 @@ function parseDeadline(text: string): DeadlineInsight | null {
     new RegExp(`\\bbefore\\s+(${deadlineTarget})\\b`, "i"),
     new RegExp(`\\bdue\\s+(?:by\\s+)?(${deadlineTarget})\\b`, "i"),
     new RegExp(`\\bneeded\\s+(?:by|before)\\s+(${deadlineTarget})\\b`, "i"),
+    /\b(within\s+\d+\s+(?:hours?|days?|weeks?)|next week|this month|next month)\b/i,
   ];
 
   for (const pattern of patterns) {
@@ -310,7 +326,7 @@ function parseDeadline(text: string): DeadlineInsight | null {
 
     const target = normalizeDeadlineTarget(match[1]);
     return {
-      label: `By ${target}`,
+      label: /^Within\b/i.test(target) ? target : `By ${target}`,
       suffix: actionDeadlineSuffix(target),
     };
   }
@@ -347,14 +363,7 @@ function cleanTaskPhrase(value: string): string {
 }
 
 function urgencyForDeadline(deadline: DeadlineInsight | null): Urgency | null {
-  if (!deadline) return null;
-  if (/\b(Noon|Midnight|Today|Tomorrow)\b/i.test(deadline.label)) {
-    return "today";
-  }
-  if (/\b(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b/.test(deadline.label)) {
-    return "this_week";
-  }
-  return null;
+  return urgencyForDeadlineText(deadline?.label);
 }
 
 function toSentence(value: string): string {
@@ -452,7 +461,11 @@ function applyTodayBudget(messages: AnalyzedMessage[]): AnalyzedMessage[] {
       if (message.urgency !== "today") return message;
       todayCount += 1;
 
-      if (todayCount <= budget || message.priorityScore >= 95) {
+      if (
+        todayCount <= budget ||
+        message.priorityScore >= 95 ||
+        getDeadlineDistanceDays(message.deadline) === 0
+      ) {
         return message;
       }
 

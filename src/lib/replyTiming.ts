@@ -135,6 +135,42 @@ interface ParsedDeadline {
   suffix: string;
 }
 
+const weekdayIndexes: Record<string, number> = {
+  sunday: 0,
+  monday: 1,
+  tuesday: 2,
+  wednesday: 3,
+  thursday: 4,
+  friday: 5,
+  saturday: 6,
+};
+const monthIndexes: Record<string, number> = {
+  jan: 0,
+  january: 0,
+  feb: 1,
+  february: 1,
+  mar: 2,
+  march: 2,
+  apr: 3,
+  april: 3,
+  may: 4,
+  jun: 5,
+  june: 5,
+  jul: 6,
+  july: 6,
+  aug: 7,
+  august: 7,
+  sep: 8,
+  sept: 8,
+  september: 8,
+  oct: 9,
+  october: 9,
+  nov: 10,
+  november: 10,
+  dec: 11,
+  december: 11,
+};
+
 function normalizeDeadlineLabel(deadline: string | undefined): string {
   const label = deadline?.trim() ?? "";
   if (label.toLowerCase() === "check message deadline") return "";
@@ -142,7 +178,7 @@ function normalizeDeadlineLabel(deadline: string | undefined): string {
 }
 
 const deadlineTarget =
-  "(?:noon|midnight|eod|end of day|today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?:\\s+(?:at\\s+)?\\d{1,2}(?::\\d{2})?\\s*(?:a\\.?m\\.?|p\\.?m\\.?)?(?:\\s*(?:pt|et|ct|mt|pst|est|cst|mst|utc))?)?";
+  "(?:noon|midnight|eod|end of day|today|tomorrow|this week|next week|this month|next month|within\\s+\\d+\\s+(?:hours?|days?|weeks?)|(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\\s+\\d{1,2}|\\d{1,2}/\\d{1,2}|monday|tuesday|wednesday|thursday|friday|saturday|sunday)(?:\\s+(?:at\\s+)?\\d{1,2}(?::\\d{2})?\\s*(?:a\\.?m\\.?|p\\.?m\\.?)?(?:\\s*(?:pt|et|ct|mt|pst|est|cst|mst|utc))?)?";
 
 function titleCaseWord(value: string): string {
   return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
@@ -158,6 +194,9 @@ function messageBody(text: string): string {
 
 function normalizeDeadlineTarget(value: string): string {
   return value
+    .replace(/\bwithin\s+(\d+)\s+(hours?|days?|weeks?)\b/gi, (_, amount, unit) =>
+      `Within ${amount} ${titleCaseWord(unit)}`,
+    )
     .replace(/\bend of day\b/i, "EOD")
     .replace(/\beod\b/i, "EOD")
     .replace(/\ba\.?m\.?\b/gi, "AM")
@@ -166,7 +205,11 @@ function normalizeDeadlineTarget(value: string): string {
       zone.toUpperCase(),
     )
     .replace(
-      /\b(noon|midnight|today|tomorrow|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/gi,
+      /\b(noon|midnight|today|tomorrow|this week|next week|this month|next month|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/gi,
+      (word) => titleCaseWord(word),
+    )
+    .replace(
+      /\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b/gi,
       (word) => titleCaseWord(word),
     )
     .replace(/\s+at\s+/i, " ")
@@ -175,6 +218,9 @@ function normalizeDeadlineTarget(value: string): string {
 }
 
 function actionDeadlineSuffix(target: string): string {
+  if (/^Within\b/i.test(target)) {
+    return target.toLowerCase();
+  }
   if (/^(Noon|Midnight|Today|Tomorrow)$/i.test(target)) {
     return `by ${target.toLowerCase()}`;
   }
@@ -188,6 +234,7 @@ function parseDeadline(text: string): ParsedDeadline | null {
     new RegExp(`\\bbefore\\s+(${deadlineTarget})\\b`, "i"),
     new RegExp(`\\bdue\\s+(?:by\\s+)?(${deadlineTarget})\\b`, "i"),
     new RegExp(`\\bneeded\\s+(?:by|before)\\s+(${deadlineTarget})\\b`, "i"),
+    /\b(within\s+\d+\s+(?:hours?|days?|weeks?)|next week|this month|next month)\b/i,
   ];
 
   for (const pattern of patterns) {
@@ -196,7 +243,7 @@ function parseDeadline(text: string): ParsedDeadline | null {
 
     const target = normalizeDeadlineTarget(match[1]);
     return {
-      label: `By ${target}`,
+      label: /^Within\b/i.test(target) ? target : `By ${target}`,
       suffix: actionDeadlineSuffix(target),
     };
   }
@@ -204,15 +251,128 @@ function parseDeadline(text: string): ParsedDeadline | null {
   return null;
 }
 
-function urgencyForDeadline(deadline: ParsedDeadline | null): Urgency | null {
-  if (!deadline) return null;
-  if (/\b(Noon|Midnight|Today|Tomorrow)\b/i.test(deadline.label)) {
+function startOfDay(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function daysUntilDate(target: Date, referenceDate: Date) {
+  return Math.round(
+    (startOfDay(target).getTime() - startOfDay(referenceDate).getTime()) /
+      86_400_000,
+  );
+}
+
+function daysUntilWeekday(weekday: string, referenceDate: Date) {
+  const targetDay = weekdayIndexes[weekday.toLowerCase()];
+  if (targetDay === undefined) return null;
+
+  const currentDay = referenceDate.getDay();
+  return (targetDay - currentDay + 7) % 7;
+}
+
+function daysUntilMonthDate(match: RegExpMatchArray, referenceDate: Date) {
+  const month = monthIndexes[match[1].toLowerCase()];
+  const day = Number(match[2]);
+  if (month === undefined || !Number.isInteger(day)) return null;
+
+  const target = new Date(referenceDate.getFullYear(), month, day);
+  if (Number.isNaN(target.getTime())) return null;
+  if (daysUntilDate(target, referenceDate) < 0) {
+    target.setFullYear(target.getFullYear() + 1);
+  }
+
+  return daysUntilDate(target, referenceDate);
+}
+
+function daysUntilNumericDate(match: RegExpMatchArray, referenceDate: Date) {
+  const month = Number(match[1]) - 1;
+  const day = Number(match[2]);
+  if (!Number.isInteger(month) || !Number.isInteger(day)) return null;
+
+  const target = new Date(referenceDate.getFullYear(), month, day);
+  if (Number.isNaN(target.getTime())) return null;
+  if (daysUntilDate(target, referenceDate) < 0) {
+    target.setFullYear(target.getFullYear() + 1);
+  }
+
+  return daysUntilDate(target, referenceDate);
+}
+
+export function getDeadlineDistanceDays(
+  text: string | undefined,
+  referenceDate = new Date(),
+): number | null {
+  const value = normalizeDeadlineLabel(text).toLowerCase();
+  if (!value) return null;
+
+  if (/\b(noon|midnight|eod|end of day|today)\b/.test(value)) return 0;
+  if (/\btomorrow\b/.test(value)) return 1;
+  if (/\bthis week\b/.test(value)) return 3;
+  if (/\bnext week\b/.test(value)) return 7;
+  if (/\bthis month\b/.test(value)) return 14;
+  if (/\bnext month\b/.test(value)) return 31;
+
+  const relative = value.match(/\bwithin\s+(\d+)\s+(hours?|days?|weeks?)\b/);
+  if (relative) {
+    const amount = Number(relative[1]);
+    const unit = relative[2];
+    if (unit.startsWith("hour")) return Math.ceil(amount / 24);
+    if (unit.startsWith("day")) return amount;
+    return amount * 7;
+  }
+
+  const monthDate = value.match(
+    /\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+(\d{1,2})\b/,
+  );
+  if (monthDate) return daysUntilMonthDate(monthDate, referenceDate);
+
+  const numericDate = value.match(/\b(\d{1,2})\/(\d{1,2})\b/);
+  if (numericDate) return daysUntilNumericDate(numericDate, referenceDate);
+
+  const weekday = value.match(
+    /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/,
+  )?.[1];
+  if (weekday) return daysUntilWeekday(weekday, referenceDate);
+
+  return null;
+}
+
+export function urgencyForDeadlineText(
+  deadlineText: string | undefined,
+  referenceDate = new Date(),
+): Urgency | null {
+  const distance = getDeadlineDistanceDays(deadlineText, referenceDate);
+  if (distance === null) return null;
+  if (distance <= 0) {
     return "today";
   }
-  if (/\b(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b/.test(deadline.label)) {
+  if (distance <= 6) {
     return "this_week";
   }
-  return null;
+  if (distance <= 30) {
+    return "this_month";
+  }
+  return "later";
+}
+
+function urgencyForDeadline(deadline: ParsedDeadline | null): Urgency | null {
+  return urgencyForDeadlineText(deadline?.label);
+}
+
+export function compareMessagesByDeadlineUrgency(
+  a: Pick<AnalyzedMessage, "deadline" | "priorityScore">,
+  b: Pick<AnalyzedMessage, "deadline" | "priorityScore">,
+): number {
+  const aDistance = getDeadlineDistanceDays(a.deadline);
+  const bDistance = getDeadlineDistanceDays(b.deadline);
+
+  if (aDistance !== null || bDistance !== null) {
+    if (aDistance === null) return 1;
+    if (bDistance === null) return -1;
+    if (aDistance !== bDistance) return aDistance - bDistance;
+  }
+
+  return b.priorityScore - a.priorityScore;
 }
 
 function sentenceWithDeadline(body: string): string {

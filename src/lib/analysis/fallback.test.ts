@@ -30,6 +30,25 @@ describe("createFallbackAnalysis", () => {
     expect(lanes.has("later")).toBe(true);
   });
 
+  it("keeps the sample inbox balanced across lanes and formats", () => {
+    const result = createFallbackAnalysis(sampleInbox, goals);
+    const counts = result.messages.reduce<Record<string, number>>(
+      (totals, message) => {
+        totals[message.urgency] = (totals[message.urgency] ?? 0) + 1;
+        return totals;
+      },
+      {},
+    );
+
+    expect(result.messages).toHaveLength(12);
+    expect(counts.today).toBe(3);
+    expect(counts.this_week).toBe(3);
+    expect(counts.this_month).toBe(3);
+    expect(counts.later).toBe(3);
+    expect((sampleInbox.match(/^Dear /gm) ?? [])).toHaveLength(6);
+    expect((sampleInbox.match(/^Source:/gm) ?? [])).toHaveLength(12);
+  });
+
   it("extracts message-specific deadline badges and next steps", () => {
     const result = createFallbackAnalysis(
       `Source: Email

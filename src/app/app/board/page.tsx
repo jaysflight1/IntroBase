@@ -40,6 +40,7 @@ import { logEvent } from "@/lib/logEvent";
 import { makeClientId } from "@/lib/normalize";
 import { STORAGE_KEYS } from "@/lib/storageKeys";
 import {
+  compareMessagesByDeadlineUrgency,
   getTimingBadgeClass,
   getTimingCardClass,
   getTimingDotClass,
@@ -154,7 +155,7 @@ export default function BoardPage() {
         ...column,
         messages: visibleMessages
           .filter((message) => column.urgencies.includes(message.urgency))
-          .sort((a, b) => b.priorityScore - a.priorityScore),
+          .sort(compareMessagesByDeadlineUrgency),
       })),
     [visibleMessages],
   );
