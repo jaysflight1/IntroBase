@@ -118,4 +118,86 @@ describe("analyzeRawMessages diagnostics", () => {
       json_schema: { strict: true },
     });
   });
+
+  it("repairs empty GPT text fields before validation", async () => {
+    process.env.OPENAI_API_KEY = "test_key";
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        Response.json({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  messages: [
+                    {
+                      id: "msg_1",
+                      source: "Email",
+                      senderName: "Maya Chen",
+                      senderOrganization: "",
+                      senderRole: "",
+                      originalText: rawMessages,
+                      summary: "Maya needs the pilot report by Monday.",
+                      category: "customer",
+                      priority: "medium",
+                      urgency: "this_week",
+                      priorityScore: 72,
+                      deadline: "By Monday",
+                      suggestedAction: "Send the pilot report by Monday.",
+                      suggestedReply: "",
+                      whyItMatters: "Potential customer request.",
+                      followUpDate: "",
+                      contactTags: ["customer"],
+                      status: "new",
+                    },
+                  ],
+                  contacts: [
+                    {
+                      id: "contact_1",
+                      name: "Maya Chen",
+                      organization: "",
+                      role: "",
+                      source: "Email",
+                      tags: ["customer"],
+                      lastInteractionSummary: "Maya needs the pilot report.",
+                      priority: "medium",
+                      nextStep: "Send the pilot report by Monday.",
+                      lastInteractionAt: "",
+                    },
+                  ],
+                  sourceTypes: ["Email"],
+                  categoryCounts: {
+                    investor: 0,
+                    customer: 1,
+                    hiring: 0,
+                    collaborator: 0,
+                    mentor: 0,
+                    school: 0,
+                    personal: 0,
+                    application: 0,
+                    sales: 0,
+                    spam: 0,
+                    other: 0,
+                  },
+                  messageCount: 1,
+                }),
+              },
+            },
+          ],
+        }),
+      ),
+    );
+
+    const result = await analyzeRawMessages(rawMessages, goals);
+
+    expect(result.analysisDiagnostics).toEqual({
+      engine: "openai",
+      model: ANALYSIS_MODEL,
+      openaiAttempted: true,
+    });
+    expect(result.messages[0].suggestedReply).toContain("Hi Maya Chen");
+    expect(result.messages[0].suggestedReply).toContain(
+      "Send the pilot report by Monday.",
+    );
+  });
 });

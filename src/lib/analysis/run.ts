@@ -205,6 +205,79 @@ async function analyzeWithOpenAI(rawMessages: string, userGoals: UserGoals) {
   return JSON.parse(content) as unknown;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function nonEmptyString(value: unknown, fallback: string) {
+  return typeof value === "string" && value.trim() ? value : fallback;
+}
+
+function messageReplyFallback(message: Record<string, unknown>) {
+  const senderName = nonEmptyString(message.senderName, "there");
+  const suggestedAction = nonEmptyString(
+    message.suggestedAction,
+    "I will follow up with the next step.",
+  );
+
+  return `Hi ${senderName}, thanks for reaching out. ${suggestedAction}`;
+}
+
+function repairOpenAIAnalysisResult(candidate: unknown): unknown {
+  if (!isRecord(candidate)) return candidate;
+
+  return {
+    ...candidate,
+    messages: Array.isArray(candidate.messages)
+      ? candidate.messages.map((message) => {
+          if (!isRecord(message)) return message;
+          const originalText = nonEmptyString(
+            message.originalText,
+            "Message requires review.",
+          );
+
+          return {
+            ...message,
+            senderName: nonEmptyString(message.senderName, "Unknown sender"),
+            originalText,
+            summary: nonEmptyString(message.summary, originalText),
+            suggestedAction: nonEmptyString(
+              message.suggestedAction,
+              "Reply with the next step.",
+            ),
+            suggestedReply: nonEmptyString(
+              message.suggestedReply,
+              messageReplyFallback(message),
+            ),
+            whyItMatters: nonEmptyString(
+              message.whyItMatters,
+              "This message needs review before deciding how to respond.",
+            ),
+          };
+        })
+      : candidate.messages,
+    contacts: Array.isArray(candidate.contacts)
+      ? candidate.contacts.map((contact) => {
+          if (!isRecord(contact)) return contact;
+          const name = nonEmptyString(contact.name, "Unknown sender");
+
+          return {
+            ...contact,
+            name,
+            lastInteractionSummary: nonEmptyString(
+              contact.lastInteractionSummary,
+              "Recent inbound message.",
+            ),
+            nextStep: nonEmptyString(
+              contact.nextStep,
+              "Reply with the next step.",
+            ),
+          };
+        })
+      : candidate.contacts,
+  };
+}
+
 export function normalizeAnalysisMessages(messages: AnalyzedMessage[]) {
   return messages.slice(0, 50).map((message) => ({
     ...message,
@@ -251,7 +324,9 @@ export async function analyzeRawMessages(
   } else {
     try {
       const llmResult = await analyzeWithOpenAI(rawMessages, userGoals);
-      const parsed = analysisResultSchema.safeParse(llmResult);
+      const parsed = analysisResultSchema.safeParse(
+        repairOpenAIAnalysisResult(llmResult),
+      );
 
       if (parsed.success) {
         result = parsed.data;
