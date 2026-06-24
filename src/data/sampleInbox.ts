@@ -2,9 +2,14 @@ export const sampleInbox = `Source: LinkedIn
 From: Maya Chen, Program Director at Northstar Accelerator
 Message: Hey, I saw what you're building and would love to talk about a possible pilot with our accelerator founders. Are you free Thursday or Friday?
 
-Source: Email
+Dear Introbase team,
+
+Your Introbase concept is interesting. Could you send a short deck and maybe meet next week? We invest in founder productivity tools.
+
+Best,
+Daniel Brooks
 From: Daniel Brooks at SeedFund
-Message: Your Introbase concept is interesting. Could you send a short deck and maybe meet next week? We invest in founder productivity tools.
+Source: Email
 
 Source: Gmail
 From: Priya Nair, Operations Lead at Campus Labs
@@ -22,9 +27,13 @@ Source: Email
 From: Design Partner Program
 Message: Reminder: the design partner intake form is due by Friday at 5 PM PT if you want to be included in next week's pilot cohort.
 
+Dear Jaylan,
+
+I reviewed your landing page. The privacy note is strong, but the main CTA needs to get users into the demo faster. Happy to do 20 minutes tomorrow.
+
+Best,
+Lena Ortiz
 Source: Email
-From: Lena Ortiz, Product Mentor
-Message: I reviewed your landing page. The privacy note is strong, but the main CTA needs to get users into the demo faster. Happy to do 20 minutes tomorrow.
 
 Source: Slack
 From: Jordan at BetaWorks

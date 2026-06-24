@@ -204,9 +204,13 @@ function ImportView() {
               value={rawMessages}
               onChange={(event) => setRawMessages(event.target.value)}
               className="min-h-[380px] resize-y bg-card font-mono text-sm"
-              placeholder={`Source: LinkedIn
-From: Maya Chen
-Message: Hey, I saw what you're building and would love to talk about a possible pilot with our accelerator.`}
+              placeholder={`Dear Jaylan,
+
+I followed up earlier about my application but didn't hear back. Do you know when we will know whether we were accepted?
+
+Best,
+Talya
+Source: Gmail`}
             />
             <div className="flex items-center justify-between gap-3">
               <div className="flex gap-2">

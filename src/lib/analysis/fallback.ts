@@ -10,30 +10,145 @@ import type {
 import { syncMessageTiming, urgencyToPriority } from "@/lib/replyTiming";
 
 function splitMessages(rawMessages: string): string[] {
-  const sourceBlocks = rawMessages
-    .split(/\n(?=Source:\s*)/i)
-    .map((block) => block.trim())
-    .filter(Boolean);
+  const normalized = rawMessages.replace(/\r\n?/g, "\n");
+  const hasMarkers =
+    /^["']?(?:Source|From|Message):\s*/im.test(normalized) ||
+    /^Dear\s+.+,\s*$/im.test(normalized);
 
-  if (sourceBlocks.length > 1) return sourceBlocks.slice(0, 50);
+  if (!hasMarkers) {
+    return normalized
+      .split(/\n{2,}/)
+      .map((block) => block.trim())
+      .filter(Boolean)
+      .slice(0, 50);
+  }
 
-  return rawMessages
-    .split(/\n{2,}/)
+  const blocks: string[] = [];
+  let current: string[] = [];
+
+  function currentHasMessageLabel() {
+    return current.some((line) => /^["']?Message:\s*/i.test(line.trim()));
+  }
+
+  function currentHasContent() {
+    return current.some((line) => {
+      const trimmed = line.trim();
+      return (
+        trimmed &&
+        !/^["']?(?:Source|From):\s*/i.test(trimmed)
+      );
+    });
+  }
+
+  function flushCurrent() {
+    const block = current.join("\n").trim();
+    if (block) blocks.push(block);
+    current = [];
+  }
+
+  const lines = normalized.split("\n");
+
+  function markerStartsStructuredRecord(index: number) {
+    const firstLine = lines[index]?.trim() ?? "";
+    if (!/^["']?(?:Source|From):\s*/i.test(firstLine)) return false;
+
+    for (let cursor = index + 1; cursor < lines.length; cursor += 1) {
+      const nextLine = lines[cursor].trim();
+      if (!nextLine) continue;
+      if (/^Dear\s+.+,\s*$/i.test(nextLine)) return false;
+      if (/^["']?Message:\s*/i.test(nextLine)) return true;
+      if (/^["']?Source:\s*/i.test(nextLine)) return false;
+    }
+
+    return false;
+  }
+
+  for (const [index, line] of lines.entries()) {
+    const trimmed = line.trim();
+    const startsDearMessage = /^Dear\s+.+,\s*$/i.test(trimmed);
+    const startsLabeledMessage =
+      /^["']?(?:Source|From):\s*/i.test(trimmed) &&
+      (currentHasMessageLabel() || markerStartsStructuredRecord(index));
+
+    if (
+      current.length > 0 &&
+      ((startsDearMessage && currentHasContent()) ||
+        (startsLabeledMessage && currentHasContent()))
+    ) {
+      flushCurrent();
+    }
+
+    current.push(line);
+  }
+
+  flushCurrent();
+
+  return blocks
     .map((block) => block.trim())
     .filter(Boolean)
     .slice(0, 50);
 }
 
 function field(block: string, label: string): string {
-  const match = block.match(new RegExp(`${label}:\\s*(.+)`, "i"));
+  const match = block.match(new RegExp(`^["']?${label}:\\s*(.+?)["']?$`, "im"));
   return match?.[1]?.trim() ?? "";
 }
 
-function messageBody(block: string): string {
+function stripMetadataLines(block: string): string {
   return block
-    .replace(/^Source:.+$/gim, "")
-    .replace(/^From:.+$/gim, "")
+    .replace(/^["']?Source:.+?["']?$/gim, "")
+    .replace(/^["']?From:.+?["']?$/gim, "")
+    .trim();
+}
+
+function cleanSenderName(value: string): string {
+  return value
+    .replace(/^[-–—\s]+/, "")
+    .replace(/[.,;:\s]+$/, "")
+    .trim();
+}
+
+function extractSignatureSender(block: string): string {
+  const lines = stripMetadataLines(block)
     .replace(/^Message:\s*/gim, "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const closingIndex = lines.findIndex((line) =>
+    /^(best|thanks|thank you|regards|sincerely),?$/i.test(line),
+  );
+
+  if (closingIndex === -1) return "";
+
+  const sender = lines[closingIndex + 1];
+  return sender ? cleanSenderName(sender) : "";
+}
+
+function messageBody(block: string): string {
+  const lines = stripMetadataLines(block)
+    .replace(/^Message:\s*/gim, "")
+    .split("\n")
+    .map((line) => line.trim());
+  const firstContentIndex = lines.findIndex(Boolean);
+
+  if (
+    firstContentIndex !== -1 &&
+    /^Dear\s+.+,\s*$/i.test(lines[firstContentIndex])
+  ) {
+    lines.splice(firstContentIndex, 1);
+  }
+
+  const closingIndex = lines.findIndex((line) =>
+    /^(best|thanks|thank you|regards|sincerely),?$/i.test(line),
+  );
+
+  if (closingIndex !== -1) {
+    lines.splice(closingIndex);
+  }
+
+  return lines
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
 
@@ -362,12 +477,14 @@ export function createFallbackAnalysis(
   const blocks = splitMessages(rawMessages);
   const initialMessages: AnalyzedMessage[] = blocks.map((block, index) => {
     const source = field(block, "Source");
-    const from = field(block, "From") || `Sender ${index + 1}`;
+    const from =
+      field(block, "From") || extractSignatureSender(block) || `Sender ${index + 1}`;
     const [senderName, senderOrganization] = from.split(/\s+at\s+/i);
     const classified = classify(block);
     const deadline = parseDeadline(block);
     const urgency = urgencyForDeadline(deadline) ?? classified.urgency;
     const summary = summarize(block);
+    const body = messageBody(block);
     const followUpDate =
       urgency === "this_month" || urgency === "later"
         ? nextBusinessDate(urgency === "later" ? 14 : 7)
@@ -379,7 +496,7 @@ export function createFallbackAnalysis(
       senderName: senderName.trim(),
       senderOrganization: senderOrganization?.trim() ?? "",
       senderRole: "",
-      originalText: block,
+      originalText: body,
       summary,
       category: classified.category,
       priority: urgencyToPriority(urgency),

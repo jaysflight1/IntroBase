@@ -70,4 +70,56 @@ Message: Reminder: the design partner intake form is due by Friday at 5 PM PT if
         "Complete the design partner intake form by Friday 5 PM PT.",
     });
   });
+
+  it("parses letter-style messages with signature senders", () => {
+    const result = createFallbackAnalysis(
+      `Dear Name,
+
+I followed up with you earlier about my application but didn't hear back. Do you know when we will know whether we were accepted?
+
+Best,
+Sender.`,
+      goals,
+    );
+
+    expect(result.messages).toHaveLength(1);
+    expect(result.messages[0]).toMatchObject({
+      senderName: "Sender",
+      originalText:
+        "I followed up with you earlier about my application but didn't hear back. Do you know when we will know whether we were accepted?",
+      summary:
+        "I followed up with you earlier about my application but didn't hear back. Do you know when we will know whether we were accepted?",
+    });
+  });
+
+  it("uses explicit source and from fields around letter-style messages", () => {
+    const result = createFallbackAnalysis(
+      `Dear Jaylan,
+
+Can you review the application update by Tuesday?
+
+Best,
+Talya
+Source: Gmail
+From: Talya Rivera
+
+Source: Slack
+From: Jordan
+Message: Following up on the customer discovery interview.`,
+      goals,
+    );
+
+    expect(result.messages).toHaveLength(2);
+    expect(result.messages[0]).toMatchObject({
+      source: "Gmail",
+      senderName: "Talya Rivera",
+      originalText: "Can you review the application update by Tuesday?",
+      deadline: "By Tuesday",
+    });
+    expect(result.messages[1]).toMatchObject({
+      source: "Slack",
+      senderName: "Jordan",
+      originalText: "Following up on the customer discovery interview.",
+    });
+  });
 });
