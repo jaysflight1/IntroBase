@@ -86,6 +86,26 @@ describe("reply timing helpers", () => {
     });
   });
 
+  it("keeps broad timing labels as manual lane assignments", () => {
+    const migrated = migrateAnalysisResult({
+      ...baseResult,
+      messages: [
+        {
+          ...baseResult.messages[0],
+          originalText: "Message: I need this done by noon.",
+          urgency: "later",
+          deadline: "Later",
+          suggestedAction: "Handle later.",
+        },
+      ],
+    });
+
+    expect(migrated.messages[0]).toMatchObject({
+      urgency: "later",
+      deadline: "Later",
+    });
+  });
+
   it("maps estimated deadline distance to broad timing lanes", () => {
     const referenceDate = new Date("2026-06-24T12:00:00Z");
 

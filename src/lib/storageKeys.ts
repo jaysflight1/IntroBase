@@ -6,6 +6,7 @@ export const STORAGE_KEYS = {
   importDraft: "introbase_import_draft",
   importDraftMessages: "introbase_import_draft_messages",
   previousImportMessages: "introbase_previous_import_messages",
+  boardDeletedMessageIds: "introbase_board_deleted_message_ids",
   savedContacts: "introbase_saved_contacts",
   followups: "introbase_followups",
   hasSeenFeedbackModal: "introbase_has_seen_feedback_modal",

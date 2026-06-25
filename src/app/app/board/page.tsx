@@ -1,15 +1,18 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import type { DragEvent, KeyboardEvent } from "react";
 import Link from "next/link";
 import {
   Archive,
   CheckCircle2,
   Clipboard,
   ContactRound,
+  GripVertical,
   KanbanSquare,
   MailCheck,
   Plus,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -45,6 +48,7 @@ import {
   REPLY_TIMINGS,
   syncMessageTiming,
   TIMING_COLUMNS,
+  urgencyToPriority,
 } from "@/lib/replyTiming";
 import { cn } from "@/lib/utils";
 import type {
@@ -52,12 +56,55 @@ import type {
   AnalyzedMessage,
   ExtractedContact,
   FollowUp,
+  Urgency,
 } from "@/types";
+
+function buildAnalysisFromMessages(
+  analysis: AnalysisResult,
+  nextMessages: AnalyzedMessage[],
+  syncTiming: boolean,
+): AnalysisResult {
+  const messages = syncTiming
+    ? nextMessages.map(syncMessageTiming)
+    : nextMessages;
+  const categoryCounts = messages.reduce<Record<string, number>>(
+    (counts, message) => {
+      counts[message.category] = (counts[message.category] ?? 0) + 1;
+      return counts;
+    },
+    {},
+  );
+
+  return {
+    ...analysis,
+    messages,
+    categoryCounts,
+    messageCount: messages.length,
+    sourceTypes: Array.from(
+      new Set(messages.map((message) => message.source).filter(Boolean)),
+    ),
+  };
+}
+
+function filterDeletedMessages(analysis: AnalysisResult): AnalysisResult {
+  const deletedIds = new Set(
+    readJson<string[]>(STORAGE_KEYS.boardDeletedMessageIds, []),
+  );
+  if (deletedIds.size === 0) return analysis;
+
+  return buildAnalysisFromMessages(
+    analysis,
+    analysis.messages.filter((message) => !deletedIds.has(message.id)),
+    false,
+  );
+}
 
 export default function BoardPage() {
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [selected, setSelected] = useState<AnalyzedMessage | null>(null);
   const [sourceFilter, setSourceFilter] = useState("all");
+  const [draggedMessageId, setDraggedMessageId] = useState<string | null>(null);
+  const [dragOverUrgency, setDragOverUrgency] = useState<Urgency | null>(null);
 
   useEffect(() => {
     void Promise.resolve().then(() => {
@@ -65,7 +112,9 @@ export default function BoardPage() {
         STORAGE_KEYS.currentAnalysis,
         null,
       );
-      if (stored) setAnalysis(migrateAnalysisResult(stored));
+      if (stored) {
+        setAnalysis(filterDeletedMessages(migrateAnalysisResult(stored)));
+      }
     });
   }, []);
 
@@ -83,33 +132,24 @@ export default function BoardPage() {
       const serverAnalysis = migrateAnalysisResult(
         (await response.json()) as AnalysisResult,
       );
+      const visibleServerAnalysis = filterDeletedMessages(serverAnalysis);
 
-      if (!active || serverAnalysis.messageCount === 0) return;
+      if (!active || visibleServerAnalysis.messageCount === 0) return;
 
       setAnalysis((current) => {
-        if (!current) return serverAnalysis;
+        if (!current) return visibleServerAnalysis;
 
         const existingIds = new Set(
           current.messages.map((message) => message.id),
         );
         const mergedMessages = [
-          ...serverAnalysis.messages.filter(
+          ...visibleServerAnalysis.messages.filter(
             (message) => !existingIds.has(message.id),
           ),
           ...current.messages,
         ];
 
-        return {
-          ...current,
-          messages: mergedMessages,
-          messageCount: mergedMessages.length,
-          sourceTypes: Array.from(
-            new Set([
-              ...current.sourceTypes,
-              ...serverAnalysis.sourceTypes,
-            ]),
-          ),
-        };
+        return buildAnalysisFromMessages(current, mergedMessages, false);
       });
     }
 
@@ -146,10 +186,9 @@ export default function BoardPage() {
     [visibleMessages],
   );
 
-  function persist(nextMessages: AnalyzedMessage[]) {
+  function persist(nextMessages: AnalyzedMessage[], syncTiming = true) {
     if (!analysis) return;
-    const syncedMessages = nextMessages.map(syncMessageTiming);
-    const next = { ...analysis, messages: syncedMessages };
+    const next = buildAnalysisFromMessages(analysis, nextMessages, syncTiming);
     setAnalysis(next);
     writeJson(STORAGE_KEYS.currentAnalysis, next);
   }
@@ -169,6 +208,111 @@ export default function BoardPage() {
     setSelected((current) =>
       current?.id === messageId ? nextMessage : current,
     );
+  }
+
+  function changeMessageTiming(
+    messageId: string,
+    urgency: Urgency,
+    patch: Partial<AnalyzedMessage> = {},
+  ) {
+    const nextMessage = messages
+      .filter((message) => message.id === messageId)
+      .map((message) => ({
+        ...message,
+        ...patch,
+        urgency,
+        priority: urgencyToPriority(urgency),
+        deadline: getTimingLabel(urgency),
+      }))[0];
+
+    if (!nextMessage) return;
+
+    persist(
+      messages.map((message) =>
+        message.id === messageId ? nextMessage : message,
+      ),
+      false,
+    );
+    setSelected((current) =>
+      current?.id === messageId ? nextMessage : current,
+    );
+  }
+
+  function deleteMessage(messageId: string) {
+    const deletedIds = readJson<string[]>(
+      STORAGE_KEYS.boardDeletedMessageIds,
+      [],
+    );
+    if (!deletedIds.includes(messageId)) {
+      writeJson(STORAGE_KEYS.boardDeletedMessageIds, [
+        ...deletedIds,
+        messageId,
+      ]);
+    }
+
+    persist(
+      messages.filter((message) => message.id !== messageId),
+      false,
+    );
+    setSelected((current) => (current?.id === messageId ? null : current));
+    toast.success("Message deleted");
+    void logEvent("deleted_message", { message_id: messageId });
+  }
+
+  function handleMessageDragStart(
+    event: DragEvent<HTMLElement>,
+    message: AnalyzedMessage,
+  ) {
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", message.id);
+    setDraggedMessageId(message.id);
+  }
+
+  function handleColumnDragOver(
+    event: DragEvent<HTMLElement>,
+    urgency: Urgency,
+  ) {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    setDragOverUrgency(urgency);
+  }
+
+  function handleColumnDragLeave(event: DragEvent<HTMLElement>) {
+    const nextTarget = event.relatedTarget;
+    if (
+      !(nextTarget instanceof Node) ||
+      !event.currentTarget.contains(nextTarget)
+    ) {
+      setDragOverUrgency(null);
+    }
+  }
+
+  function handleColumnDrop(event: DragEvent<HTMLElement>, urgency: Urgency) {
+    event.preventDefault();
+    const messageId =
+      event.dataTransfer.getData("text/plain") || draggedMessageId;
+    setDraggedMessageId(null);
+    setDragOverUrgency(null);
+
+    if (!messageId) return;
+    const message = messages.find((candidate) => candidate.id === messageId);
+    if (!message || message.urgency === urgency) return;
+
+    changeMessageTiming(messageId, urgency);
+    toast.success(`Moved to ${getTimingLabel(urgency)}`);
+    void logEvent("changed_priority", {
+      message_id: messageId,
+      priority: urgencyToPriority(urgency),
+    });
+  }
+
+  function handleCardKeyDown(
+    event: KeyboardEvent<HTMLElement>,
+    message: AnalyzedMessage,
+  ) {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    openMessage(message);
   }
 
   async function copyReply(message: AnalyzedMessage) {
@@ -254,10 +398,7 @@ export default function BoardPage() {
 
     writeJson(STORAGE_KEYS.followups, [...followups, followUp]);
     void syncFollowUp(followUp);
-    updateMessage(message.id, {
-      status: "follow_up",
-      urgency: "this_month",
-    });
+    changeMessageTiming(message.id, "this_month", { status: "follow_up" });
     toast.success("Follow-up created");
     void logEvent("created_followup", {
       message_id: message.id,
@@ -266,7 +407,7 @@ export default function BoardPage() {
     });
   }
 
-  if (!analysis) {
+  if (!analysis || analysis.messageCount === 0) {
     return (
       <EmptyState
         icon={KanbanSquare}
@@ -332,7 +473,14 @@ export default function BoardPage() {
           return (
             <section
               key={column.title}
-              className="flex flex-col rounded-xl border border-border/70 bg-muted/40"
+              onDragOver={(event) => handleColumnDragOver(event, columnUrgency)}
+              onDragLeave={handleColumnDragLeave}
+              onDrop={(event) => handleColumnDrop(event, columnUrgency)}
+              className={cn(
+                "flex flex-col rounded-xl border border-border/70 bg-muted/40 transition-shadow",
+                dragOverUrgency === columnUrgency &&
+                  "ring-2 ring-ring/45 ring-offset-2",
+              )}
             >
               <header className="flex items-center justify-between px-3 py-2.5">
                 <div className="flex items-center gap-2">
@@ -350,34 +498,60 @@ export default function BoardPage() {
               </header>
               <div className="flex flex-col gap-2 px-2 pb-2">
                 {column.messages.map((message) => (
-                  <button
+                  <article
                     key={message.id}
-                    type="button"
+                    draggable
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Open message from ${message.senderName}`}
                     onClick={() => openMessage(message)}
+                    onKeyDown={(event) => handleCardKeyDown(event, message)}
+                    onDragStart={(event) => handleMessageDragStart(event, message)}
+                    onDragEnd={() => {
+                      setDraggedMessageId(null);
+                      setDragOverUrgency(null);
+                    }}
                     className={cn(
-                      "rounded-lg border border-border/70 bg-card p-3 text-left shadow-xs transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none",
+                      "cursor-grab rounded-lg border border-border/70 bg-card p-3 text-left shadow-xs transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none active:cursor-grabbing",
                       getTimingCardClass(message.urgency),
+                      draggedMessageId === message.id && "opacity-60",
                     )}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold">
-                          {message.senderName}
-                        </p>
-                        <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                          {[message.senderRole, message.senderOrganization]
-                            .filter(Boolean)
-                            .join(" · ") || message.source}
-                        </p>
+                      <div className="flex min-w-0 gap-2">
+                        <GripVertical className="mt-0.5 size-4 shrink-0 text-muted-foreground/70" />
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold">
+                            {message.senderName}
+                          </p>
+                          <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                            {[message.senderRole, message.senderOrganization]
+                              .filter(Boolean)
+                              .join(" · ") || message.source}
+                          </p>
+                        </div>
                       </div>
-                      <span
-                        className={cn(
-                          "shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-medium",
-                          getTimingBadgeClass(message.urgency),
-                        )}
-                      >
-                        {getMessageTimingLabel(message)}
-                      </span>
+                      <div className="flex shrink-0 items-start gap-1">
+                        <span
+                          className={cn(
+                            "rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                            getTimingBadgeClass(message.urgency),
+                          )}
+                        >
+                          {getMessageTimingLabel(message)}
+                        </span>
+                        <button
+                          type="button"
+                          aria-label={`Delete message from ${message.senderName}`}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            deleteMessage(message.id);
+                          }}
+                          className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      </div>
                     </div>
                     <p className="mt-2 line-clamp-2 text-sm leading-5 text-foreground/80">
                       {message.summary}
@@ -392,11 +566,19 @@ export default function BoardPage() {
                         </span>
                       ) : null}
                     </div>
-                  </button>
+                  </article>
                 ))}
                 {column.messages.length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-border/80 px-3 py-6 text-center text-xs text-muted-foreground">
-                    Nothing here
+                  <div
+                    className={cn(
+                      "rounded-lg border border-dashed border-border/80 px-3 py-6 text-center text-xs text-muted-foreground transition-colors",
+                      dragOverUrgency === columnUrgency &&
+                        "border-ring bg-card text-foreground",
+                    )}
+                  >
+                    {dragOverUrgency === columnUrgency
+                      ? "Drop here"
+                      : "Nothing here"}
                   </div>
                 ) : null}
               </div>
@@ -507,8 +689,7 @@ export default function BoardPage() {
                   <Button
                     variant="outline"
                     onClick={() => {
-                      updateMessage(selected.id, {
-                        urgency: "later",
+                      changeMessageTiming(selected.id, "later", {
                         status: "ignored",
                       });
                       void logEvent("changed_priority", {
@@ -519,6 +700,14 @@ export default function BoardPage() {
                   >
                     <Archive className="size-4" />
                     Move to later
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => deleteMessage(selected.id)}
+                    className="border-destructive/30 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  >
+                    <Trash2 className="size-4" />
+                    Delete message
                   </Button>
                 </div>
                 <DropdownMenu>
@@ -535,13 +724,10 @@ export default function BoardPage() {
                       <DropdownMenuItem
                         key={urgency}
                         onClick={() => {
-                          updateMessage(selected.id, { urgency });
+                          changeMessageTiming(selected.id, urgency);
                           void logEvent("changed_priority", {
                             message_id: selected.id,
-                            priority: syncMessageTiming({
-                              ...selected,
-                              urgency,
-                            }).priority,
+                            priority: urgencyToPriority(urgency),
                           });
                         }}
                       >

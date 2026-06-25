@@ -130,6 +130,15 @@ export function getTimingLabel(urgency: Urgency): string {
   return getTimingVisual(urgency).label;
 }
 
+function timingLabelToUrgency(label: string): Urgency | null {
+  const normalized = label.trim().toLowerCase();
+  if (normalized === "today") return "today";
+  if (normalized === "this week") return "this_week";
+  if (normalized === "this month") return "this_month";
+  if (normalized === "later") return "later";
+  return null;
+}
+
 interface ParsedDeadline {
   label: string;
   suffix: string;
@@ -478,10 +487,17 @@ export function getTimingDotClass(urgency: Urgency): string {
 }
 
 export function syncMessageTiming(message: AnalyzedMessage): AnalyzedMessage {
-  const deadline = parseDeadline(message.originalText);
-  const urgency = urgencyForDeadline(deadline) ?? migrateUrgency(message.urgency);
+  const existingDeadline = normalizeDeadlineLabel(message.deadline);
+  const manuallyAssignedUrgency = timingLabelToUrgency(existingDeadline);
+  const deadline = manuallyAssignedUrgency
+    ? null
+    : parseDeadline(message.originalText);
+  const urgency =
+    manuallyAssignedUrgency ??
+    urgencyForDeadline(deadline) ??
+    migrateUrgency(message.urgency);
   const normalizedDeadline =
-    normalizeDeadlineLabel(message.deadline) || deadline?.label || "";
+    existingDeadline || deadline?.label || "";
 
   return {
     ...message,
