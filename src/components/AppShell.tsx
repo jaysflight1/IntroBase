@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -9,6 +10,8 @@ import {
   KanbanSquare,
   LogIn,
   LogOut,
+  PanelLeftClose,
+  PanelLeftOpen,
   Plug,
   UserCircle,
   Users,
@@ -16,6 +19,8 @@ import {
 
 import { BrandMark } from "@/components/LogoLink";
 import { Button } from "@/components/ui/button";
+import { readJson, writeJson } from "@/lib/browserStorage";
+import { STORAGE_KEYS } from "@/lib/storageKeys";
 import { cn } from "@/lib/utils";
 
 const navGroups = [
@@ -43,22 +48,26 @@ function NavLink({
   label,
   icon: Icon,
   active,
+  collapsed = false,
 }: {
   href: string;
   label: string;
   icon: typeof Inbox;
   active: boolean;
+  collapsed?: boolean;
 }) {
   return (
     <Link
       href={href}
+      title={collapsed ? label : undefined}
       className={cn(
         "flex h-8 items-center gap-2.5 rounded-md px-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+        collapsed && "justify-center px-0",
         active && "bg-secondary text-secondary-foreground hover:bg-secondary",
       )}
     >
       <Icon className={cn("size-4", active && "text-primary")} />
-      {label}
+      <span className={cn(collapsed && "sr-only")}>{label}</span>
     </Link>
   );
 }
@@ -70,18 +79,71 @@ interface AppShellProps {
 
 export function AppShell({ userEmail, children }: AppShellProps) {
   const pathname = usePathname();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+
+  useEffect(() => {
+    void Promise.resolve().then(() => {
+      setSidebarCollapsed(
+        readJson<boolean>(STORAGE_KEYS.appSidebarCollapsed, false),
+      );
+    });
+  }, []);
+
+  function toggleSidebar() {
+    setSidebarCollapsed((current) => {
+      const next = !current;
+      writeJson(STORAGE_KEYS.appSidebarCollapsed, next);
+      return next;
+    });
+  }
 
   return (
     <div className="min-h-screen bg-background">
       {/* Desktop sidebar */}
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-60 flex-col border-r border-border/70 bg-card lg:flex">
-        <div className="flex h-14 items-center border-b border-border/70 px-4">
-          <BrandMark />
+      <aside
+        className={cn(
+          "fixed inset-y-0 left-0 z-40 hidden flex-col border-r border-border/70 bg-card transition-[width] duration-200 lg:flex",
+          sidebarCollapsed ? "w-16" : "w-60",
+        )}
+      >
+        <div
+          className={cn(
+            "flex h-14 items-center border-b border-border/70 px-3",
+            sidebarCollapsed ? "justify-center" : "justify-between",
+          )}
+        >
+          {sidebarCollapsed ? null : <BrandMark />}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            onClick={toggleSidebar}
+            aria-label={
+              sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"
+            }
+            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+          >
+            {sidebarCollapsed ? (
+              <PanelLeftOpen className="size-4" />
+            ) : (
+              <PanelLeftClose className="size-4" />
+            )}
+          </Button>
         </div>
-        <nav className="flex-1 space-y-6 overflow-y-auto px-3 py-5">
+        <nav
+          className={cn(
+            "flex-1 overflow-y-auto py-5",
+            sidebarCollapsed ? "space-y-4 px-2" : "space-y-6 px-3",
+          )}
+        >
           {navGroups.map((group) => (
             <div key={group.label}>
-              <p className="px-2.5 pb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground/70">
+              <p
+                className={cn(
+                  "px-2.5 pb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground/70",
+                  sidebarCollapsed && "sr-only",
+                )}
+              >
                 {group.label}
               </p>
               <div className="space-y-0.5">
@@ -90,26 +152,34 @@ export function AppShell({ userEmail, children }: AppShellProps) {
                     key={item.href}
                     {...item}
                     active={pathname === item.href}
+                    collapsed={sidebarCollapsed}
                   />
                 ))}
               </div>
             </div>
           ))}
         </nav>
-        <div className="border-t border-border/70 p-3">
+        <div className={cn("border-t border-border/70 p-3", sidebarCollapsed && "px-2")}>
           {userEmail ? (
-            <div className="flex items-center gap-2">
+            <div
+              className={cn(
+                "flex items-center gap-2",
+                sidebarCollapsed && "flex-col",
+              )}
+            >
               <Link
                 href="/app/account"
+                title={sidebarCollapsed ? "Account" : undefined}
                 className={cn(
                   "flex min-w-0 flex-1 items-center gap-2.5 rounded-md p-1.5 transition-colors hover:bg-muted",
+                  sidebarCollapsed && "flex-none justify-center",
                   pathname === "/app/account" && "bg-secondary",
                 )}
               >
                 <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
                   {userEmail.charAt(0).toUpperCase()}
                 </span>
-                <span className="min-w-0">
+                <span className={cn("min-w-0", sidebarCollapsed && "sr-only")}>
                   <span className="block truncate text-sm font-medium leading-tight">
                     Account
                   </span>
@@ -132,10 +202,16 @@ export function AppShell({ userEmail, children }: AppShellProps) {
           ) : (
             <Link
               href="/login"
-              className="flex h-8 items-center gap-2.5 rounded-md px-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              title={sidebarCollapsed ? "Sign in" : undefined}
+              className={cn(
+                "flex h-8 items-center gap-2.5 rounded-md px-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+                sidebarCollapsed && "justify-center px-0",
+              )}
             >
               <LogIn className="size-4" />
-              Sign in
+              <span className={cn(sidebarCollapsed && "sr-only")}>
+                Sign in
+              </span>
             </Link>
           )}
         </div>
@@ -185,8 +261,18 @@ export function AppShell({ userEmail, children }: AppShellProps) {
         </nav>
       </header>
 
-      <main className="lg:pl-60">
-        <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6 lg:py-8">
+      <main
+        className={cn(
+          "transition-[padding] duration-200",
+          sidebarCollapsed ? "lg:pl-16" : "lg:pl-60",
+        )}
+      >
+        <div
+          className={cn(
+            "mx-auto w-full px-4 py-6 sm:px-6 lg:py-8",
+            sidebarCollapsed ? "max-w-7xl" : "max-w-6xl",
+          )}
+        >
           {children}
         </div>
       </main>
