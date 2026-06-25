@@ -42,6 +42,10 @@ const navGroups = [
 ];
 
 const navItems = navGroups.flatMap((group) => group.items);
+const mobileNavItems = [
+  ...navItems,
+  { href: "/app/account", label: "Account", icon: UserCircle },
+];
 
 function NavLink({
   href,
@@ -59,6 +63,7 @@ function NavLink({
   return (
     <Link
       href={href}
+      prefetch={false}
       title={collapsed ? label : undefined}
       className={cn(
         "flex h-8 items-center gap-2.5 rounded-md px-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
@@ -170,6 +175,7 @@ export function AppShell({ userEmail, children }: AppShellProps) {
             >
               <Link
                 href="/app/account"
+                prefetch={false}
                 title={sidebarCollapsed ? "Account" : undefined}
                 className={cn(
                   "flex min-w-0 flex-1 items-center gap-2.5 rounded-md p-1.5 transition-colors hover:bg-muted",
@@ -203,6 +209,7 @@ export function AppShell({ userEmail, children }: AppShellProps) {
           ) : (
             <Link
               href="/login"
+              prefetch={false}
               title={sidebarCollapsed ? "Sign in" : undefined}
               className={cn(
                 "flex h-8 items-center gap-2.5 rounded-md px-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
@@ -232,6 +239,7 @@ export function AppShell({ userEmail, children }: AppShellProps) {
           ) : (
             <Link
               href="/login"
+              prefetch={false}
               className="text-sm font-medium text-muted-foreground hover:text-foreground"
             >
               Sign in
@@ -239,26 +247,25 @@ export function AppShell({ userEmail, children }: AppShellProps) {
           )}
         </div>
         <nav className="flex gap-1 overflow-x-auto px-3 pb-2">
-          {[...navItems, { href: "/app/account", label: "Account", icon: UserCircle }].map(
-            (item) => {
-              const Icon = item.icon;
-              const active = pathname === item.href;
+          {mobileNavItems.map((item) => {
+            const Icon = item.icon;
+            const active = pathname === item.href;
 
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={cn(
-                    "flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
-                    active && "bg-secondary text-secondary-foreground",
-                  )}
-                >
-                  <Icon className={cn("size-4", active && "text-primary")} />
-                  {item.label}
-                </Link>
-              );
-            },
-          )}
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                prefetch={false}
+                className={cn(
+                  "flex h-8 shrink-0 items-center gap-1.5 rounded-md px-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+                  active && "bg-secondary text-secondary-foreground",
+                )}
+              >
+                <Icon className={cn("size-4", active && "text-primary")} />
+                {item.label}
+              </Link>
+            );
+          })}
         </nav>
       </header>
 
