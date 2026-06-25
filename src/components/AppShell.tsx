@@ -80,6 +80,7 @@ interface AppShellProps {
 export function AppShell({ userEmail, children }: AppShellProps) {
   const pathname = usePathname();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const isBoardPage = pathname === "/app/board";
 
   useEffect(() => {
     void Promise.resolve().then(() => {
@@ -269,8 +270,11 @@ export function AppShell({ userEmail, children }: AppShellProps) {
       >
         <div
           className={cn(
-            "mx-auto w-full px-4 py-6 sm:px-6 lg:py-8",
-            sidebarCollapsed ? "max-w-7xl" : "max-w-6xl",
+            "mx-auto w-full py-6 lg:py-8",
+            isBoardPage
+              ? "max-w-[calc(100vw-1.5rem)] px-2 sm:px-3 lg:px-3"
+              : "px-4 sm:px-6",
+            !isBoardPage && (sidebarCollapsed ? "max-w-7xl" : "max-w-6xl"),
           )}
         >
           {children}

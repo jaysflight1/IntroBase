@@ -722,7 +722,7 @@ export default function BoardPage() {
         }
       />
 
-      <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-4">
         {grouped.map((column) => {
           const columnUrgency = column.urgencies[0];
 
