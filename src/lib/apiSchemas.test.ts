@@ -8,14 +8,26 @@ import {
 
 describe("api schemas", () => {
   it("accepts safe analytics event payloads", () => {
-    const parsed = eventPayloadSchema.safeParse({
-      anonymous_user_id: "anon_123",
-      session_id: "session_123",
-      event_name: "visited_landing",
-      metadata: { source: "test" },
-    });
+    const eventNames = [
+      "visited_landing",
+      "created_import_message",
+      "deleted_message",
+      "edited_deadline",
+      "edited_suggested_reply",
+      "starred_contact",
+      "saved_contact_note",
+    ];
 
-    expect(parsed.success).toBe(true);
+    const parsed = eventNames.map((eventName) =>
+      eventPayloadSchema.safeParse({
+        anonymous_user_id: "anon_123",
+        session_id: "session_123",
+        event_name: eventName,
+        metadata: { source: "test" },
+      }),
+    );
+
+    expect(parsed.every((result) => result.success)).toBe(true);
   });
 
   it("rejects oversized analysis payloads", () => {

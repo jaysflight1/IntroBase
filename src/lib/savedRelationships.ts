@@ -49,6 +49,7 @@ export function contactToRow(userId: string, contact: ExtractedContact) {
     next_step: contact.nextStep,
     last_interaction_at: contact.lastInteractionAt ?? null,
     note: contact.note ?? "",
+    starred: contact.starred ?? false,
     updated_at: new Date().toISOString(),
   };
 }
@@ -80,6 +81,7 @@ export function rowToContact(row: {
   next_step: string;
   last_interaction_at: string | null;
   note: string | null;
+  starred?: boolean | null;
 }): ExtractedContact {
   return {
     id: row.id,
@@ -93,6 +95,7 @@ export function rowToContact(row: {
     nextStep: row.next_step,
     lastInteractionAt: row.last_interaction_at ?? undefined,
     note: row.note ?? undefined,
+    starred: row.starred ?? false,
   };
 }
 

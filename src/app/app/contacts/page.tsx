@@ -107,19 +107,53 @@ export default function ContactsPage() {
     }).catch(() => null);
   }
 
-  function markImportant(contact: ExtractedContact) {
-    const updated = { ...contact, priority: urgencyToPriority("today") };
+  function toggleStar(contact: ExtractedContact) {
+    const nextStarred = !contact.starred;
+    const updated = {
+      ...contact,
+      starred: nextStarred,
+      priority: nextStarred ? urgencyToPriority("today") : contact.priority,
+    };
     persist(
       contacts.map((item) => (item.id === contact.id ? updated : item)),
     );
     void syncContact(updated);
-    void logEvent("saved_contact", { contact_id: contact.id, priority: "high" });
+    void logEvent(nextStarred ? "starred_contact" : "unstarred_contact", {
+      contact_id: contact.id,
+      priority: updated.priority,
+    });
+  }
+
+  function openNoteEditor(contact: ExtractedContact) {
+    if (editingId === contact.id) {
+      setEditingId(null);
+      setNote("");
+      return;
+    }
+
+    setEditingId(contact.id);
+    setNote(contact.note ?? "");
+  }
+
+  function dismissEmptyNote() {
+    if (note.trim()) return;
+    setEditingId(null);
+    setNote("");
   }
 
   function saveNote(contact: ExtractedContact) {
-    const updated = { ...contact, note };
+    const trimmedNote = note.trim();
+
+    if (!trimmedNote) {
+      setEditingId(null);
+      setNote("");
+      return;
+    }
+
+    const updated = { ...contact, note: trimmedNote };
     persist(contacts.map((item) => (item.id === contact.id ? updated : item)));
     void syncContact(updated);
+    void logEvent("saved_contact_note", { contact_id: contact.id });
     setEditingId(null);
     setNote("");
     toast.success("Note saved");
@@ -225,6 +259,7 @@ export default function ContactsPage() {
                       <Input
                         value={note}
                         onChange={(event) => setNote(event.target.value)}
+                        onBlur={dismissEmptyNote}
                         placeholder="Add note"
                       />
                       <Button size="sm" onClick={() => saveNote(contact)}>
@@ -242,21 +277,28 @@ export default function ContactsPage() {
                     <Button
                       size="icon-sm"
                       variant="ghost"
-                      title="Mark as high priority"
-                      aria-label="Mark as high priority"
-                      onClick={() => markImportant(contact)}
+                      title={contact.starred ? "Unstar contact" : "Star contact"}
+                      aria-label={
+                        contact.starred ? "Unstar contact" : "Star contact"
+                      }
+                      onClick={() => toggleStar(contact)}
                     >
-                      <Star className="size-4" />
+                      <Star
+                        className={cn(
+                          "size-4",
+                          contact.starred && "fill-amber-400 text-amber-500",
+                        )}
+                      />
                     </Button>
                     <Button
                       size="icon-sm"
                       variant="ghost"
                       title="Add note"
                       aria-label="Add note"
-                      onClick={() => {
-                        setEditingId(contact.id);
-                        setNote(contact.note ?? "");
+                      onMouseDown={(event) => {
+                        if (editingId === contact.id) event.preventDefault();
                       }}
+                      onClick={() => openNoteEditor(contact)}
                     >
                       <StickyNote className="size-4" />
                     </Button>

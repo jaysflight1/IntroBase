@@ -55,6 +55,7 @@ export interface ExtractedContact {
   nextStep: string;
   lastInteractionAt?: string;
   note?: string;
+  starred?: boolean;
 }
 
 export interface FollowUp {

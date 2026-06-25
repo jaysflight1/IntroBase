@@ -19,7 +19,7 @@ export async function GET() {
   const { data, error } = await supabase
     .from("saved_contacts")
     .select(
-      "id, name, organization, role, source, tags, last_interaction_summary, priority, next_step, last_interaction_at, note",
+      "id, name, organization, role, source, tags, last_interaction_summary, priority, next_step, last_interaction_at, note, starred",
     )
     .eq("user_id", user.id)
     .order("updated_at", { ascending: false });
