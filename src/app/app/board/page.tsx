@@ -18,6 +18,8 @@ import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -48,6 +50,7 @@ import {
   REPLY_TIMINGS,
   syncMessageTiming,
   TIMING_COLUMNS,
+  urgencyForDeadlineText,
   urgencyToPriority,
 } from "@/lib/replyTiming";
 import { cn } from "@/lib/utils";
@@ -58,6 +61,13 @@ import type {
   FollowUp,
   Urgency,
 } from "@/types";
+
+type DropPosition = "before" | "after";
+
+interface DragTarget {
+  messageId: string;
+  position: DropPosition;
+}
 
 function buildAnalysisFromMessages(
   analysis: AnalysisResult,
@@ -86,6 +96,64 @@ function buildAnalysisFromMessages(
   };
 }
 
+function getColumnIndex(urgency: Urgency): number {
+  const index = TIMING_COLUMNS.findIndex((column) =>
+    column.urgencies.includes(urgency),
+  );
+  return index >= 0 ? index : TIMING_COLUMNS.length;
+}
+
+function getOrderedMessages(
+  nextMessages: AnalyzedMessage[],
+  boardOrder: string[],
+): AnalyzedMessage[] {
+  const orderIndex = new Map(boardOrder.map((id, index) => [id, index]));
+  const hasManualOrder = boardOrder.length > 0;
+
+  return [...nextMessages].sort((a, b) => {
+    if (hasManualOrder) {
+      const aIndex = orderIndex.get(a.id);
+      const bIndex = orderIndex.get(b.id);
+
+      if (aIndex !== undefined || bIndex !== undefined) {
+        if (aIndex === undefined) return 1;
+        if (bIndex === undefined) return -1;
+        if (aIndex !== bIndex) return aIndex - bIndex;
+      }
+    }
+
+    const columnDifference = getColumnIndex(a.urgency) - getColumnIndex(b.urgency);
+    if (columnDifference !== 0) return columnDifference;
+
+    return compareMessagesByDeadlineUrgency(a, b);
+  });
+}
+
+function getColumnInsertIndex(
+  orderedMessages: AnalyzedMessage[],
+  urgency: Urgency,
+): number {
+  const targetColumnIndex = getColumnIndex(urgency);
+  let insertIndex = orderedMessages.length;
+
+  for (let index = 0; index < orderedMessages.length; index += 1) {
+    const messageColumnIndex = getColumnIndex(orderedMessages[index].urgency);
+
+    if (messageColumnIndex === targetColumnIndex) {
+      insertIndex = index + 1;
+    } else if (messageColumnIndex > targetColumnIndex) {
+      return insertIndex === orderedMessages.length ? index : insertIndex;
+    }
+  }
+
+  return insertIndex;
+}
+
+function getDropPosition(event: DragEvent<HTMLElement>): DropPosition {
+  const bounds = event.currentTarget.getBoundingClientRect();
+  return event.clientY < bounds.top + bounds.height / 2 ? "before" : "after";
+}
+
 function filterDeletedMessages(analysis: AnalysisResult): AnalysisResult {
   const deletedIds = new Set(
     readJson<string[]>(STORAGE_KEYS.boardDeletedMessageIds, []),
@@ -103,8 +171,12 @@ export default function BoardPage() {
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [selected, setSelected] = useState<AnalyzedMessage | null>(null);
   const [sourceFilter, setSourceFilter] = useState("all");
+  const [boardOrder, setBoardOrder] = useState<string[]>([]);
   const [draggedMessageId, setDraggedMessageId] = useState<string | null>(null);
   const [dragOverUrgency, setDragOverUrgency] = useState<Urgency | null>(null);
+  const [dragTarget, setDragTarget] = useState<DragTarget | null>(null);
+  const [deadlineDraft, setDeadlineDraft] = useState("");
+  const [replyDraft, setReplyDraft] = useState("");
 
   useEffect(() => {
     void Promise.resolve().then(() => {
@@ -115,6 +187,7 @@ export default function BoardPage() {
       if (stored) {
         setAnalysis(filterDeletedMessages(migrateAnalysisResult(stored)));
       }
+      setBoardOrder(readJson<string[]>(STORAGE_KEYS.boardMessageOrder, []));
     });
   }, []);
 
@@ -176,21 +249,33 @@ export default function BoardPage() {
     [messages, sourceFilter],
   );
   const grouped = useMemo(
-    () =>
-      TIMING_COLUMNS.map((column) => ({
+    () => {
+      const orderedMessages = getOrderedMessages(visibleMessages, boardOrder);
+
+      return TIMING_COLUMNS.map((column) => ({
         ...column,
-        messages: visibleMessages
-          .filter((message) => column.urgencies.includes(message.urgency))
-          .sort(compareMessagesByDeadlineUrgency),
-      })),
-    [visibleMessages],
+        messages: orderedMessages.filter((message) =>
+          column.urgencies.includes(message.urgency),
+        ),
+      }));
+    },
+    [boardOrder, visibleMessages],
   );
 
-  function persist(nextMessages: AnalyzedMessage[], syncTiming = true) {
+  function persist(
+    nextMessages: AnalyzedMessage[],
+    syncTiming = true,
+    nextBoardOrder?: string[],
+  ) {
     if (!analysis) return;
     const next = buildAnalysisFromMessages(analysis, nextMessages, syncTiming);
     setAnalysis(next);
     writeJson(STORAGE_KEYS.currentAnalysis, next);
+
+    if (nextBoardOrder) {
+      setBoardOrder(nextBoardOrder);
+      writeJson(STORAGE_KEYS.boardMessageOrder, nextBoardOrder);
+    }
   }
 
   function updateMessage(messageId: string, patch: Partial<AnalyzedMessage>) {
@@ -208,6 +293,12 @@ export default function BoardPage() {
     setSelected((current) =>
       current?.id === messageId ? nextMessage : current,
     );
+    if (selected?.id === messageId) {
+      setDeadlineDraft(nextMessage.deadline || getTimingLabel(nextMessage.urgency));
+      if (nextMessage.suggestedReply !== selected.suggestedReply) {
+        setReplyDraft(nextMessage.suggestedReply);
+      }
+    }
   }
 
   function changeMessageTiming(
@@ -238,6 +329,110 @@ export default function BoardPage() {
     );
   }
 
+  function updateMessageWithoutTimingSync(
+    messageId: string,
+    patch: Partial<AnalyzedMessage>,
+  ) {
+    const nextMessage = messages
+      .filter((message) => message.id === messageId)
+      .map((message) => ({ ...message, ...patch }))[0];
+
+    if (!nextMessage) return;
+
+    persist(
+      messages.map((message) =>
+        message.id === messageId ? nextMessage : message,
+      ),
+      false,
+    );
+    setSelected((current) =>
+      current?.id === messageId ? nextMessage : current,
+    );
+  }
+
+  function saveDeadline(messageId: string, value: string) {
+    const message = messages.find((candidate) => candidate.id === messageId);
+    if (!message) return;
+
+    const deadline = value.trim() || getTimingLabel(message.urgency);
+    const urgency = urgencyForDeadlineText(deadline) ?? message.urgency;
+
+    updateMessageWithoutTimingSync(messageId, {
+      deadline,
+      urgency,
+      priority: urgencyToPriority(urgency),
+    });
+    setDeadlineDraft(deadline);
+  }
+
+  function saveSuggestedReply(messageId: string, value: string) {
+    const suggestedReply = value.trim();
+    if (!suggestedReply) return;
+
+    updateMessageWithoutTimingSync(messageId, { suggestedReply });
+    setReplyDraft(suggestedReply);
+  }
+
+  function moveMessageOnBoard(
+    messageId: string,
+    targetUrgency: Urgency,
+    targetMessageId?: string,
+    position: DropPosition = "after",
+  ) {
+    const currentMessages = getOrderedMessages(messages, boardOrder);
+    const currentMessage = currentMessages.find(
+      (message) => message.id === messageId,
+    );
+    if (!currentMessage) return;
+
+    const nextMessage =
+      currentMessage.urgency === targetUrgency
+        ? currentMessage
+        : {
+            ...currentMessage,
+            urgency: targetUrgency,
+            priority: urgencyToPriority(targetUrgency),
+            deadline: getTimingLabel(targetUrgency),
+          };
+    const withoutDragged = currentMessages.filter(
+      (message) => message.id !== messageId,
+    );
+    let insertIndex = getColumnInsertIndex(withoutDragged, targetUrgency);
+
+    if (targetMessageId && targetMessageId !== messageId) {
+      const targetIndex = withoutDragged.findIndex(
+        (message) => message.id === targetMessageId,
+      );
+
+      if (targetIndex >= 0) {
+        insertIndex = targetIndex + (position === "after" ? 1 : 0);
+      }
+    }
+
+    const nextMessages = [
+      ...withoutDragged.slice(0, insertIndex),
+      nextMessage,
+      ...withoutDragged.slice(insertIndex),
+    ];
+    const nextBoardOrder = nextMessages.map((message) => message.id);
+
+    persist(nextMessages, false, nextBoardOrder);
+    setSelected((current) =>
+      current?.id === messageId ? nextMessage : current,
+    );
+
+    const changedColumn = currentMessage.urgency !== targetUrgency;
+    toast.success(
+      changedColumn ? `Moved to ${getTimingLabel(targetUrgency)}` : "Reordered",
+    );
+    if (changedColumn) {
+      void logEvent("changed_priority", {
+        message_id: messageId,
+        priority: urgencyToPriority(targetUrgency),
+      });
+    }
+  }
+
   function deleteMessage(messageId: string) {
     const deletedIds = readJson<string[]>(
       STORAGE_KEYS.boardDeletedMessageIds,
@@ -253,6 +448,7 @@ export default function BoardPage() {
     persist(
       messages.filter((message) => message.id !== messageId),
       false,
+      boardOrder.filter((id) => id !== messageId),
     );
     setSelected((current) => (current?.id === messageId ? null : current));
     toast.success("Message deleted");
@@ -266,6 +462,37 @@ export default function BoardPage() {
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", message.id);
     setDraggedMessageId(message.id);
+  }
+
+  function handleMessageDragOver(
+    event: DragEvent<HTMLElement>,
+    message: AnalyzedMessage,
+  ) {
+    event.preventDefault();
+    event.stopPropagation();
+    event.dataTransfer.dropEffect = "move";
+    setDragOverUrgency(message.urgency);
+    setDragTarget({
+      messageId: message.id,
+      position: getDropPosition(event),
+    });
+  }
+
+  function handleMessageDrop(
+    event: DragEvent<HTMLElement>,
+    message: AnalyzedMessage,
+  ) {
+    event.preventDefault();
+    event.stopPropagation();
+    const messageId =
+      event.dataTransfer.getData("text/plain") || draggedMessageId;
+    const position = getDropPosition(event);
+    setDraggedMessageId(null);
+    setDragOverUrgency(null);
+    setDragTarget(null);
+
+    if (!messageId || messageId === message.id) return;
+    moveMessageOnBoard(messageId, message.urgency, message.id, position);
   }
 
   function handleColumnDragOver(
@@ -293,17 +520,13 @@ export default function BoardPage() {
       event.dataTransfer.getData("text/plain") || draggedMessageId;
     setDraggedMessageId(null);
     setDragOverUrgency(null);
+    setDragTarget(null);
 
     if (!messageId) return;
     const message = messages.find((candidate) => candidate.id === messageId);
-    if (!message || message.urgency === urgency) return;
+    if (!message) return;
 
-    changeMessageTiming(messageId, urgency);
-    toast.success(`Moved to ${getTimingLabel(urgency)}`);
-    void logEvent("changed_priority", {
-      message_id: messageId,
-      priority: urgencyToPriority(urgency),
-    });
+    moveMessageOnBoard(messageId, urgency);
   }
 
   function handleCardKeyDown(
@@ -315,8 +538,32 @@ export default function BoardPage() {
     openMessage(message);
   }
 
-  async function copyReply(message: AnalyzedMessage) {
-    await navigator.clipboard.writeText(message.suggestedReply);
+  function closeSelectedMessage() {
+    if (selected) {
+      const deadline = deadlineDraft.trim() || getTimingLabel(selected.urgency);
+      const urgency = urgencyForDeadlineText(deadline) ?? selected.urgency;
+      const suggestedReply = replyDraft.trim() || selected.suggestedReply;
+
+      updateMessageWithoutTimingSync(selected.id, {
+        deadline,
+        urgency,
+        priority: urgencyToPriority(urgency),
+        suggestedReply,
+      });
+    }
+    setSelected(null);
+  }
+
+  async function copyReply(
+    message: AnalyzedMessage,
+    reply = message.suggestedReply,
+  ) {
+    const suggestedReply = reply.trim() || message.suggestedReply;
+    if (suggestedReply !== message.suggestedReply) {
+      saveSuggestedReply(message.id, suggestedReply);
+    }
+
+    await navigator.clipboard.writeText(suggestedReply);
     toast.success("Suggested reply copied");
     void logEvent("copied_reply", {
       message_id: message.id,
@@ -342,6 +589,8 @@ export default function BoardPage() {
   }
 
   function openMessage(message: AnalyzedMessage) {
+    setDeadlineDraft(message.deadline || getTimingLabel(message.urgency));
+    setReplyDraft(message.suggestedReply);
     setSelected(message);
     void logEvent("opened_message", {
       message_id: message.id,
@@ -382,6 +631,10 @@ export default function BoardPage() {
 
   function createFollowUp(message: AnalyzedMessage) {
     const followups = readJson<FollowUp[]>(STORAGE_KEYS.followups, []);
+    const suggestedMessage =
+      message.id === selected?.id
+        ? replyDraft.trim() || message.suggestedReply
+        : message.suggestedReply;
     const followUp: FollowUp = {
       id: makeClientId("followup"),
       messageId: message.id,
@@ -392,13 +645,16 @@ export default function BoardPage() {
           .toISOString()
           .slice(0, 10),
       reason: message.suggestedAction,
-      suggestedMessage: message.suggestedReply,
+      suggestedMessage,
       status: "upcoming",
     };
 
     writeJson(STORAGE_KEYS.followups, [...followups, followUp]);
     void syncFollowUp(followUp);
-    changeMessageTiming(message.id, "this_month", { status: "follow_up" });
+    changeMessageTiming(message.id, "this_month", {
+      status: "follow_up",
+      suggestedReply: suggestedMessage,
+    });
     toast.success("Follow-up created");
     void logEvent("created_followup", {
       message_id: message.id,
@@ -507,14 +763,23 @@ export default function BoardPage() {
                     onClick={() => openMessage(message)}
                     onKeyDown={(event) => handleCardKeyDown(event, message)}
                     onDragStart={(event) => handleMessageDragStart(event, message)}
+                    onDragOver={(event) => handleMessageDragOver(event, message)}
+                    onDrop={(event) => handleMessageDrop(event, message)}
                     onDragEnd={() => {
                       setDraggedMessageId(null);
                       setDragOverUrgency(null);
+                      setDragTarget(null);
                     }}
                     className={cn(
                       "cursor-grab rounded-lg border border-border/70 bg-card p-3 text-left shadow-xs transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:outline-none active:cursor-grabbing",
                       getTimingCardClass(message.urgency),
                       draggedMessageId === message.id && "opacity-60",
+                      dragTarget?.messageId === message.id &&
+                        dragTarget.position === "before" &&
+                        "ring-2 ring-ring/45 ring-offset-2",
+                      dragTarget?.messageId === message.id &&
+                        dragTarget.position === "after" &&
+                        "ring-2 ring-ring/45 ring-offset-2",
                     )}
                   >
                     <div className="flex items-start justify-between gap-2">
@@ -587,19 +852,35 @@ export default function BoardPage() {
         })}
       </div>
 
-      <Dialog open={Boolean(selected)} onOpenChange={() => setSelected(null)}>
+      <Dialog
+        open={Boolean(selected)}
+        onOpenChange={(open) => {
+          if (!open) closeSelectedMessage();
+        }}
+      >
         {selected ? (
           <DialogContent className="max-h-[min(760px,calc(100vh-2rem))] overflow-y-auto p-5 sm:max-w-2xl">
             <DialogHeader className="pr-8">
               <div className="flex flex-wrap items-center gap-2">
-                <span
+                <label
                   className={cn(
-                    "rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                    "flex items-center rounded-full border px-2 py-0.5",
                     getTimingBadgeClass(selected.urgency),
                   )}
                 >
-                  {getMessageTimingLabel(selected)}
-                </span>
+                  <span className="sr-only">Deadline</span>
+                  <Input
+                    value={deadlineDraft}
+                    onChange={(event) => setDeadlineDraft(event.target.value)}
+                    onBlur={() => saveDeadline(selected.id, deadlineDraft)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") {
+                        event.currentTarget.blur();
+                      }
+                    }}
+                    className="h-5 min-w-24 border-0 bg-transparent px-0 py-0 text-[11px] font-medium shadow-none focus-visible:ring-0"
+                  />
+                </label>
                 <Badge variant="outline" className="capitalize">
                   {selected.category}
                 </Badge>
@@ -641,15 +922,18 @@ export default function BoardPage() {
                   <Button
                     variant="ghost"
                     size="xs"
-                    onClick={() => void copyReply(selected)}
+                    onClick={() => void copyReply(selected, replyDraft)}
                   >
                     <Clipboard className="size-3.5" />
                     Copy
                   </Button>
                 </div>
-                <div className="mt-2 rounded-lg border border-border/80 bg-muted/40 p-3 text-sm leading-6">
-                  {selected.suggestedReply}
-                </div>
+                <Textarea
+                  value={replyDraft}
+                  onChange={(event) => setReplyDraft(event.target.value)}
+                  onBlur={() => saveSuggestedReply(selected.id, replyDraft)}
+                  className="mt-2 min-h-36 resize-y rounded-lg border-border/80 bg-muted/40 text-sm leading-6"
+                />
               </section>
               <section>
                 <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
@@ -660,7 +944,10 @@ export default function BoardPage() {
                 </div>
               </section>
               <div className="space-y-2 border-t border-border/70 pt-5">
-                <Button className="w-full" onClick={() => void copyReply(selected)}>
+                <Button
+                  className="w-full"
+                  onClick={() => void copyReply(selected, replyDraft)}
+                >
                   <Clipboard className="size-4" />
                   Copy suggested reply
                 </Button>

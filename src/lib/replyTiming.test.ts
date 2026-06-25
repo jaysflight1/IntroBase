@@ -106,6 +106,25 @@ describe("reply timing helpers", () => {
     });
   });
 
+  it("uses edited custom deadline labels as the urgency source", () => {
+    const migrated = migrateAnalysisResult({
+      ...baseResult,
+      messages: [
+        {
+          ...baseResult.messages[0],
+          originalText: "Message: I need this done by noon.",
+          urgency: "today",
+          deadline: "By Next Week",
+        },
+      ],
+    });
+
+    expect(migrated.messages[0]).toMatchObject({
+      urgency: "this_month",
+      deadline: "By Next Week",
+    });
+  });
+
   it("maps estimated deadline distance to broad timing lanes", () => {
     const referenceDate = new Date("2026-06-24T12:00:00Z");
 

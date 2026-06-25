@@ -489,11 +489,14 @@ export function getTimingDotClass(urgency: Urgency): string {
 export function syncMessageTiming(message: AnalyzedMessage): AnalyzedMessage {
   const existingDeadline = normalizeDeadlineLabel(message.deadline);
   const manuallyAssignedUrgency = timingLabelToUrgency(existingDeadline);
-  const deadline = manuallyAssignedUrgency
-    ? null
-    : parseDeadline(message.originalText);
+  const existingDeadlineUrgency = urgencyForDeadlineText(existingDeadline);
+  const deadline =
+    existingDeadline || manuallyAssignedUrgency
+      ? null
+      : parseDeadline(message.originalText);
   const urgency =
     manuallyAssignedUrgency ??
+    existingDeadlineUrgency ??
     urgencyForDeadline(deadline) ??
     migrateUrgency(message.urgency);
   const normalizedDeadline =
