@@ -362,14 +362,29 @@ export default function BoardPage() {
       urgency,
       priority: urgencyToPriority(urgency),
     });
+    if (deadline !== message.deadline) {
+      void logEvent("edited_deadline", {
+        message_id: messageId,
+        urgency,
+      });
+    }
     setDeadlineDraft(deadline);
   }
 
   function saveSuggestedReply(messageId: string, value: string) {
+    const message = messages.find((candidate) => candidate.id === messageId);
+    if (!message) return;
+
     const suggestedReply = value.trim();
     if (!suggestedReply) return;
 
     updateMessageWithoutTimingSync(messageId, { suggestedReply });
+    if (suggestedReply !== message.suggestedReply) {
+      void logEvent("edited_suggested_reply", {
+        message_id: messageId,
+        character_count: suggestedReply.length,
+      });
+    }
     setReplyDraft(suggestedReply);
   }
 
@@ -430,6 +445,8 @@ export default function BoardPage() {
         message_id: messageId,
         priority: urgencyToPriority(targetUrgency),
       });
+    } else {
+      void logEvent("reordered_message", { message_id: messageId });
     }
   }
 
@@ -550,6 +567,18 @@ export default function BoardPage() {
         priority: urgencyToPriority(urgency),
         suggestedReply,
       });
+      if (deadline !== selected.deadline) {
+        void logEvent("edited_deadline", {
+          message_id: selected.id,
+          urgency,
+        });
+      }
+      if (suggestedReply !== selected.suggestedReply) {
+        void logEvent("edited_suggested_reply", {
+          message_id: selected.id,
+          character_count: suggestedReply.length,
+        });
+      }
     }
     setSelected(null);
   }

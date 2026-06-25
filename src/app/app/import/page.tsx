@@ -344,7 +344,10 @@ function ImportView() {
     void logEvent("started_import");
 
     if (shouldLoadSample) {
-      void logEvent("used_sample_inbox", { source: "query_param" });
+      void logEvent("used_sample_inbox", {
+        source: "query_param",
+        message_count: parseRawIntoDrafts(sampleInbox).length,
+      });
     }
   }, [shouldLoadSample]);
 
@@ -429,13 +432,17 @@ function ImportView() {
 
   function addMessage() {
     setActiveMessages((current) => [...current, createDraftMessage()]);
+    void logEvent("created_import_message", { source: "manual" });
   }
 
   function loadSample() {
     const drafts = parseRawIntoDrafts(sampleInbox);
     setActiveMessages(drafts);
     writeJson(STORAGE_KEYS.importDraftMessages, drafts);
-    void logEvent("used_sample_inbox", { source: "button" });
+    void logEvent("used_sample_inbox", {
+      source: "button",
+      message_count: drafts.length,
+    });
     toast.success("Sample messages loaded");
   }
 
@@ -449,6 +456,7 @@ function ImportView() {
         current.filter((item) => item.id !== message.id),
       );
     }
+    void logEvent("deleted_import_message", { list: message.list });
   }
 
   function movePreviousToActive(messageId: string) {
@@ -466,6 +474,7 @@ function ImportView() {
         status: "draft",
       },
     ]);
+    void logEvent("requeued_import_message");
   }
 
   function handleDropToActive(event: DragEvent<HTMLDivElement>) {
