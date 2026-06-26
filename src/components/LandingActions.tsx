@@ -34,7 +34,7 @@ export function LandingActions({
           {primaryLabel}
         </Link>
         <Link
-          href="/app/import?sample=1"
+          href="/demo/import"
           className={cn(
             buttonVariants({ variant: "outline", size: "sm" }),
             "hidden sm:inline-flex",
@@ -63,7 +63,7 @@ export function LandingActions({
         <ArrowRight className="size-4" />
       </Link>
       <Link
-        href="/app/import?sample=1"
+        href="/demo/import"
         className={cn(
           buttonVariants({ variant: "outline", size: "lg" }),
           inverted &&

@@ -1,9 +1,10 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import type { DragEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
+  ArrowDown,
   CheckCircle2,
   GripVertical,
   Loader2,
@@ -54,6 +55,29 @@ const MAX_CHARS = 25_000;
 
 type DraftStatus = "draft" | "analyzing" | "analyzed" | "failed";
 type MessageList = "active" | "previous";
+
+interface ImportExperienceProps {
+  demo?: boolean;
+}
+
+function getImportStorageKeys(demo: boolean) {
+  return {
+    currentAnalysis: demo
+      ? STORAGE_KEYS.demoCurrentAnalysis
+      : STORAGE_KEYS.currentAnalysis,
+    analysisDiagnosticsStats: demo
+      ? STORAGE_KEYS.demoAnalysisDiagnosticsStats
+      : STORAGE_KEYS.analysisDiagnosticsStats,
+    importDraft: demo ? STORAGE_KEYS.demoImportDraft : STORAGE_KEYS.importDraft,
+    importDraftMessages: demo
+      ? STORAGE_KEYS.demoImportDraftMessages
+      : STORAGE_KEYS.importDraftMessages,
+    previousImportMessages: demo
+      ? STORAGE_KEYS.demoPreviousImportMessages
+      : STORAGE_KEYS.previousImportMessages,
+    savedContacts: demo ? STORAGE_KEYS.demoSavedContacts : STORAGE_KEYS.savedContacts,
+  };
+}
 
 interface ImportMessageDraft {
   id: string;
@@ -296,10 +320,12 @@ function updateDraftStatus(
   );
 }
 
-function ImportView() {
+function ImportView({ demo = false }: ImportExperienceProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const shouldLoadSample = searchParams.get("sample") === "1";
+  const shouldLoadSample = demo || searchParams.get("sample") === "1";
+  const storageKeys = useMemo(() => getImportStorageKeys(demo), [demo]);
+  const analyzeCalloutRef = useRef<HTMLDivElement>(null);
   const [activeMessages, setActiveMessages] = useState<ImportMessageDraft[]>([]);
   const [previousMessages, setPreviousMessages] = useState<ImportMessageDraft[]>(
     [],
@@ -352,32 +378,49 @@ function ImportView() {
   }, [shouldLoadSample]);
 
   useEffect(() => {
+    if (!demo || !draftReady) return;
+
+    const timer = window.setTimeout(() => {
+      analyzeCalloutRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }, 450);
+
+    return () => window.clearTimeout(timer);
+  }, [demo, draftReady]);
+
+  useEffect(() => {
     void Promise.resolve().then(() => {
       setPreviousMessages(
         readJson<ImportMessageDraft[]>(
-          STORAGE_KEYS.previousImportMessages,
+          storageKeys.previousImportMessages,
           [],
         ),
       );
       setAnalysisStats(
         readJson<AnalysisDiagnosticsStats>(
-          STORAGE_KEYS.analysisDiagnosticsStats,
+          storageKeys.analysisDiagnosticsStats,
           emptyAnalysisStats,
         ),
       );
 
       if (shouldLoadSample) {
         setActiveMessages(parseRawIntoDrafts(sampleInbox));
+        if (demo) {
+          writeJson(storageKeys.currentAnalysis, null);
+          writeJson(storageKeys.previousImportMessages, []);
+        }
       } else {
         const storedMessages = readJson<ImportMessageDraft[] | null>(
-          STORAGE_KEYS.importDraftMessages,
+          storageKeys.importDraftMessages,
           null,
         );
 
         if (storedMessages?.length) {
           setActiveMessages(storedMessages);
         } else {
-          const legacyDraft = readJson<string>(STORAGE_KEYS.importDraft, "");
+          const legacyDraft = readJson<string>(storageKeys.importDraft, "");
           setActiveMessages(
             legacyDraft.trim()
               ? parseRawIntoDrafts(legacyDraft)
@@ -388,17 +431,17 @@ function ImportView() {
 
       setDraftReady(true);
     });
-  }, [shouldLoadSample]);
+  }, [demo, shouldLoadSample, storageKeys]);
 
   useEffect(() => {
     if (!draftReady) return;
-    writeJson(STORAGE_KEYS.importDraftMessages, activeMessages);
-  }, [activeMessages, draftReady]);
+    writeJson(storageKeys.importDraftMessages, activeMessages);
+  }, [activeMessages, draftReady, storageKeys]);
 
   useEffect(() => {
     if (!draftReady) return;
-    writeJson(STORAGE_KEYS.previousImportMessages, previousMessages);
-  }, [draftReady, previousMessages]);
+    writeJson(storageKeys.previousImportMessages, previousMessages);
+  }, [draftReady, previousMessages, storageKeys]);
 
   function toggleGoal(goal: string) {
     setPrioritize((current) =>
@@ -438,7 +481,7 @@ function ImportView() {
   function loadSample() {
     const drafts = parseRawIntoDrafts(sampleInbox);
     setActiveMessages(drafts);
-    writeJson(STORAGE_KEYS.importDraftMessages, drafts);
+    writeJson(storageKeys.importDraftMessages, drafts);
     void logEvent("used_sample_inbox", {
       source: "button",
       message_count: drafts.length,
@@ -562,7 +605,7 @@ function ImportView() {
         results.push(analysis);
         nextStats = recordAnalysisRun(nextStats, analysis.analysisDiagnostics);
         setAnalysisStats(nextStats);
-        writeJson(STORAGE_KEYS.analysisDiagnosticsStats, nextStats);
+        writeJson(storageKeys.analysisDiagnosticsStats, nextStats);
         setCompletedCount((current) => current + 1);
         setActiveMessages((current) =>
           updateDraftStatus(current, message.id, "analyzed"),
@@ -582,15 +625,15 @@ function ImportView() {
       const finalActive = nextActive.length ? nextActive : [createDraftMessage()];
       const nextPrevious = [...analyzedDrafts, ...previousMessages];
 
-      writeJson(STORAGE_KEYS.currentAnalysis, combined);
-      writeJson(STORAGE_KEYS.savedContacts, combined.contacts);
-      writeJson(STORAGE_KEYS.importDraft, "");
-      writeJson(STORAGE_KEYS.importDraftMessages, finalActive);
-      writeJson(STORAGE_KEYS.previousImportMessages, nextPrevious);
+      writeJson(storageKeys.currentAnalysis, combined);
+      writeJson(storageKeys.savedContacts, combined.contacts);
+      writeJson(storageKeys.importDraft, "");
+      writeJson(storageKeys.importDraftMessages, finalActive);
+      writeJson(storageKeys.previousImportMessages, nextPrevious);
       setActiveMessages(finalActive);
       setPreviousMessages(nextPrevious);
       toast.success("Messages analyzed");
-      router.push("/app/board");
+      router.push(demo ? "/demo/board" : "/app/board");
     } catch (error) {
       toast.error(
         error instanceof Error
@@ -667,16 +710,37 @@ function ImportView() {
                 ))}
               </div>
 
-              <div className="flex flex-col gap-3 border-t border-border/70 pt-4 sm:flex-row sm:items-center sm:justify-between">
+              <div
+                ref={analyzeCalloutRef}
+                className="flex flex-col gap-3 border-t border-border/70 pt-4 sm:flex-row sm:items-center sm:justify-between"
+              >
                 <div className="flex flex-wrap gap-2">
-                  <Button onClick={analyzeMessages} disabled={isSubmitting}>
+                  <div className="relative">
+                    {demo && !isSubmitting ? (
+                      <div className="pointer-events-none absolute -top-12 left-1/2 hidden -translate-x-1/2 flex-col items-center gap-1 text-primary sm:flex">
+                        <span className="rounded-full border border-primary/20 bg-background px-2.5 py-1 text-xs font-semibold shadow-sm">
+                          Click to analyze
+                        </span>
+                        <ArrowDown className="size-5 animate-bounce" />
+                      </div>
+                    ) : null}
+                    <Button
+                      onClick={analyzeMessages}
+                      disabled={isSubmitting}
+                      className={cn(
+                        demo &&
+                          !isSubmitting &&
+                          "animate-pulse shadow-lg shadow-primary/25 ring-4 ring-primary/20",
+                      )}
+                    >
                     {isSubmitting ? (
                       <Loader2 className="size-4 animate-spin" />
                     ) : (
                       <Sparkles className="size-4" />
                     )}
                     Analyze messages
-                  </Button>
+                    </Button>
+                  </div>
                   <Button
                     variant="outline"
                     onClick={loadSample}
@@ -948,7 +1012,7 @@ function MessageDraftCard({
   );
 }
 
-export default function ImportPage() {
+export function ImportExperience({ demo = false }: ImportExperienceProps) {
   return (
     <Suspense
       fallback={
@@ -957,7 +1021,11 @@ export default function ImportPage() {
         </div>
       }
     >
-      <ImportView />
+      <ImportView demo={demo} />
     </Suspense>
   );
+}
+
+export default function ImportPage() {
+  return <ImportExperience />;
 }

@@ -23,7 +23,20 @@ import { readJson, writeJson } from "@/lib/browserStorage";
 import { STORAGE_KEYS } from "@/lib/storageKeys";
 import { cn } from "@/lib/utils";
 
-const navGroups = [
+type AppShellVariant = "app" | "demo";
+
+interface NavItem {
+  href: string;
+  label: string;
+  icon: typeof Inbox;
+}
+
+interface NavGroup {
+  label: string;
+  items: NavItem[];
+}
+
+const fullAppNavGroups: NavGroup[] = [
   {
     label: "Workspace",
     items: [
@@ -41,11 +54,21 @@ const navGroups = [
   },
 ];
 
-const navItems = navGroups.flatMap((group) => group.items);
-const mobileNavItems = [
-  ...navItems,
-  { href: "/app/account", label: "Account", icon: UserCircle },
-];
+function getNavGroups(variant: AppShellVariant): NavGroup[] {
+  if (variant === "demo") {
+    return [
+      {
+        label: "Demo workspace",
+        items: [
+          { href: "/demo/board", label: "Board", icon: KanbanSquare },
+          { href: "/demo/import", label: "Import", icon: Inbox },
+        ],
+      },
+    ];
+  }
+
+  return fullAppNavGroups;
+}
 
 function NavLink({
   href,
@@ -80,12 +103,24 @@ function NavLink({
 interface AppShellProps {
   userEmail?: string | null;
   children: ReactNode;
+  variant?: AppShellVariant;
 }
 
-export function AppShell({ userEmail, children }: AppShellProps) {
+export function AppShell({
+  userEmail,
+  children,
+  variant = "app",
+}: AppShellProps) {
   const pathname = usePathname();
+  const isDemo = variant === "demo";
+  const navGroups = getNavGroups(variant);
+  const navItems = navGroups.flatMap((group) => group.items);
+  const mobileNavItems = isDemo
+    ? navItems
+    : [...navItems, { href: "/app/account", label: "Account", icon: UserCircle }];
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const isBoardPage = pathname === "/app/board";
+  const isBoardPage =
+    pathname === (variant === "demo" ? "/demo/board" : "/app/board");
 
   useEffect(() => {
     void Promise.resolve().then(() => {
@@ -166,7 +201,22 @@ export function AppShell({ userEmail, children }: AppShellProps) {
           ))}
         </nav>
         <div className={cn("border-t border-border/70 p-3", sidebarCollapsed && "px-2")}>
-          {userEmail ? (
+          {isDemo ? (
+            <Link
+              href="/login"
+              prefetch={false}
+              title={sidebarCollapsed ? "Sign in to save" : undefined}
+              className={cn(
+                "flex h-8 items-center gap-2.5 rounded-md px-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground",
+                sidebarCollapsed && "justify-center px-0",
+              )}
+            >
+              <LogIn className="size-4" />
+              <span className={cn(sidebarCollapsed && "sr-only")}>
+                Sign in to save
+              </span>
+            </Link>
+          ) : userEmail ? (
             <div
               className={cn(
                 "flex items-center gap-2",
@@ -229,7 +279,15 @@ export function AppShell({ userEmail, children }: AppShellProps) {
       <header className="sticky top-0 z-40 border-b border-border/70 bg-card/95 backdrop-blur lg:hidden">
         <div className="flex h-14 items-center justify-between px-4">
           <BrandMark />
-          {userEmail ? (
+          {isDemo ? (
+            <Link
+              href="/login"
+              prefetch={false}
+              className="text-sm font-medium text-muted-foreground hover:text-foreground"
+            >
+              Sign in to save
+            </Link>
+          ) : userEmail ? (
             <form action="/auth/sign-out" method="post">
               <Button variant="ghost" size="sm" type="submit">
                 <LogOut className="size-4" />

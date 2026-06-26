@@ -64,9 +64,29 @@ import type {
 
 type DropPosition = "before" | "after";
 
+interface BoardExperienceProps {
+  demo?: boolean;
+}
+
 interface DragTarget {
   messageId: string;
   position: DropPosition;
+}
+
+function getBoardStorageKeys(demo: boolean) {
+  return {
+    currentAnalysis: demo
+      ? STORAGE_KEYS.demoCurrentAnalysis
+      : STORAGE_KEYS.currentAnalysis,
+    boardDeletedMessageIds: demo
+      ? STORAGE_KEYS.demoBoardDeletedMessageIds
+      : STORAGE_KEYS.boardDeletedMessageIds,
+    boardMessageOrder: demo
+      ? STORAGE_KEYS.demoBoardMessageOrder
+      : STORAGE_KEYS.boardMessageOrder,
+    savedContacts: demo ? STORAGE_KEYS.demoSavedContacts : STORAGE_KEYS.savedContacts,
+    followups: demo ? STORAGE_KEYS.demoFollowups : STORAGE_KEYS.followups,
+  };
 }
 
 function buildAnalysisFromMessages(
@@ -154,9 +174,12 @@ function getDropPosition(event: DragEvent<HTMLElement>): DropPosition {
   return event.clientY < bounds.top + bounds.height / 2 ? "before" : "after";
 }
 
-function filterDeletedMessages(analysis: AnalysisResult): AnalysisResult {
+function filterDeletedMessages(
+  analysis: AnalysisResult,
+  deletedMessageIdsKey: string = STORAGE_KEYS.boardDeletedMessageIds,
+): AnalysisResult {
   const deletedIds = new Set(
-    readJson<string[]>(STORAGE_KEYS.boardDeletedMessageIds, []),
+    readJson<string[]>(deletedMessageIdsKey, []),
   );
   if (deletedIds.size === 0) return analysis;
 
@@ -167,7 +190,8 @@ function filterDeletedMessages(analysis: AnalysisResult): AnalysisResult {
   );
 }
 
-export default function BoardPage() {
+export function BoardExperience({ demo = false }: BoardExperienceProps) {
+  const storageKeys = useMemo(() => getBoardStorageKeys(demo), [demo]);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [selected, setSelected] = useState<AnalyzedMessage | null>(null);
   const [sourceFilter, setSourceFilter] = useState("all");
@@ -181,21 +205,28 @@ export default function BoardPage() {
   useEffect(() => {
     void Promise.resolve().then(() => {
       const stored = readJson<AnalysisResult | null>(
-        STORAGE_KEYS.currentAnalysis,
+        storageKeys.currentAnalysis,
         null,
       );
       if (stored) {
-        setAnalysis(filterDeletedMessages(migrateAnalysisResult(stored)));
+        setAnalysis(
+          filterDeletedMessages(
+            migrateAnalysisResult(stored),
+            storageKeys.boardDeletedMessageIds,
+          ),
+        );
       }
-      setBoardOrder(readJson<string[]>(STORAGE_KEYS.boardMessageOrder, []));
+      setBoardOrder(readJson<string[]>(storageKeys.boardMessageOrder, []));
     });
-  }, []);
+  }, [storageKeys]);
 
   useEffect(() => {
     void logEvent("viewed_board");
   }, []);
 
   useEffect(() => {
+    if (demo) return;
+
     let active = true;
 
     async function loadServerBoard() {
@@ -205,7 +236,10 @@ export default function BoardPage() {
       const serverAnalysis = migrateAnalysisResult(
         (await response.json()) as AnalysisResult,
       );
-      const visibleServerAnalysis = filterDeletedMessages(serverAnalysis);
+      const visibleServerAnalysis = filterDeletedMessages(
+        serverAnalysis,
+        storageKeys.boardDeletedMessageIds,
+      );
 
       if (!active || visibleServerAnalysis.messageCount === 0) return;
 
@@ -231,7 +265,7 @@ export default function BoardPage() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [demo, storageKeys]);
 
   const messages = useMemo(() => analysis?.messages ?? [], [analysis]);
   const sourceFilters = useMemo(() => {
@@ -270,11 +304,11 @@ export default function BoardPage() {
     if (!analysis) return;
     const next = buildAnalysisFromMessages(analysis, nextMessages, syncTiming);
     setAnalysis(next);
-    writeJson(STORAGE_KEYS.currentAnalysis, next);
+    writeJson(storageKeys.currentAnalysis, next);
 
     if (nextBoardOrder) {
       setBoardOrder(nextBoardOrder);
-      writeJson(STORAGE_KEYS.boardMessageOrder, nextBoardOrder);
+      writeJson(storageKeys.boardMessageOrder, nextBoardOrder);
     }
   }
 
@@ -452,11 +486,11 @@ export default function BoardPage() {
 
   function deleteMessage(messageId: string) {
     const deletedIds = readJson<string[]>(
-      STORAGE_KEYS.boardDeletedMessageIds,
+      storageKeys.boardDeletedMessageIds,
       [],
     );
     if (!deletedIds.includes(messageId)) {
-      writeJson(STORAGE_KEYS.boardDeletedMessageIds, [
+      writeJson(storageKeys.boardDeletedMessageIds, [
         ...deletedIds,
         messageId,
       ]);
@@ -630,7 +664,7 @@ export default function BoardPage() {
 
   function saveContact(message: AnalyzedMessage) {
     const contacts = readJson<ExtractedContact[]>(
-      STORAGE_KEYS.savedContacts,
+      storageKeys.savedContacts,
       [],
     );
     const exists = contacts.some((contact) => contact.name === message.senderName);
@@ -648,8 +682,8 @@ export default function BoardPage() {
     };
     const nextContacts = exists ? contacts : [...contacts, newContact];
 
-    writeJson(STORAGE_KEYS.savedContacts, nextContacts);
-    if (!exists) void syncContact(newContact);
+    writeJson(storageKeys.savedContacts, nextContacts);
+    if (!exists && !demo) void syncContact(newContact);
     toast.success(exists ? "Contact already saved" : "Contact saved");
     void logEvent("saved_contact", {
       message_id: message.id,
@@ -659,7 +693,7 @@ export default function BoardPage() {
   }
 
   function createFollowUp(message: AnalyzedMessage) {
-    const followups = readJson<FollowUp[]>(STORAGE_KEYS.followups, []);
+    const followups = readJson<FollowUp[]>(storageKeys.followups, []);
     const suggestedMessage =
       message.id === selected?.id
         ? replyDraft.trim() || message.suggestedReply
@@ -678,8 +712,8 @@ export default function BoardPage() {
       status: "upcoming",
     };
 
-    writeJson(STORAGE_KEYS.followups, [...followups, followUp]);
-    void syncFollowUp(followUp);
+    writeJson(storageKeys.followups, [...followups, followUp]);
+    if (!demo) void syncFollowUp(followUp);
     changeMessageTiming(message.id, "this_month", {
       status: "follow_up",
       suggestedReply: suggestedMessage,
@@ -700,16 +734,18 @@ export default function BoardPage() {
         description="Import messages or connect an inbox and Introbase will rank everything by reply urgency."
         action={
           <div className="flex flex-wrap justify-center gap-2">
-            <Link href="/app/import" className={buttonVariants()}>
+            <Link href={demo ? "/demo/import" : "/app/import"} className={buttonVariants()}>
               <Plus className="size-4" />
               Import messages
             </Link>
-            <Link
-              href="/app/integrations"
-              className={buttonVariants({ variant: "outline" })}
-            >
-              Connect an inbox
-            </Link>
+            {demo ? null : (
+              <Link
+                href="/app/integrations"
+                className={buttonVariants({ variant: "outline" })}
+              >
+                Connect an inbox
+              </Link>
+            )}
           </div>
         }
       />
@@ -743,7 +779,7 @@ export default function BoardPage() {
                 ))}
               </div>
             ) : null}
-            <Link href="/app/import" className={buttonVariants()}>
+            <Link href={demo ? "/demo/import" : "/app/import"} className={buttonVariants()}>
               <Plus className="size-4" />
               Import messages
             </Link>
@@ -1059,4 +1095,8 @@ export default function BoardPage() {
       </Dialog>
     </div>
   );
+}
+
+export default function BoardPage() {
+  return <BoardExperience />;
 }
