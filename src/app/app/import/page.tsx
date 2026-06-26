@@ -17,6 +17,7 @@ import {
 import { toast } from "sonner";
 
 import { PageHeader } from "@/components/PageHeader";
+import { demoAnalysis } from "@/data/demoAnalysis";
 import { defaultGoalOptions, sampleInbox } from "@/data/sampleInbox";
 import { getAnonymousUserId, getSessionId } from "@/lib/anonymousUser";
 import {
@@ -52,6 +53,7 @@ import type {
 } from "@/types";
 
 const MAX_CHARS = 25_000;
+const DEMO_ANALYSIS_DELAY_MS = 900;
 
 type DraftStatus = "draft" | "analyzing" | "analyzed" | "failed";
 type MessageList = "active" | "previous";
@@ -320,12 +322,17 @@ function updateDraftStatus(
   );
 }
 
+function wait(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
 function ImportView({ demo = false }: ImportExperienceProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const shouldLoadSample = demo || searchParams.get("sample") === "1";
   const storageKeys = useMemo(() => getImportStorageKeys(demo), [demo]);
   const analyzeCalloutRef = useRef<HTMLDivElement>(null);
+  const messageRefs = useRef(new Map<string, HTMLDivElement>());
   const [activeMessages, setActiveMessages] = useState<ImportMessageDraft[]>([]);
   const [previousMessages, setPreviousMessages] = useState<ImportMessageDraft[]>(
     [],
@@ -365,6 +372,31 @@ function ImportView({ demo = false }: ImportExperienceProps) {
   const remainingChars = MAX_CHARS - totalChars;
   const progressValue =
     analysisTotal > 0 ? Math.round((completedCount / analysisTotal) * 100) : 0;
+
+  function scrollToMessage(messageId: string) {
+    window.requestAnimationFrame(() => {
+      messageRefs.current.get(messageId)?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    });
+  }
+
+  function scrollToNextAnalyzingMessage(
+    pending: ImportMessageDraft[],
+    currentIndex: number,
+  ) {
+    const nextMessage = pending[currentIndex + 1];
+
+    if (nextMessage) {
+      scrollToMessage(nextMessage.id);
+    } else {
+      analyzeCalloutRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+    }
+  }
 
   useEffect(() => {
     void logEvent("started_import");
@@ -550,6 +582,7 @@ function ImportView({ demo = false }: ImportExperienceProps) {
     setIsSubmitting(true);
     setCompletedCount(0);
     setAnalysisTotal(pending.length);
+    scrollToMessage(pending[0].id);
     void logEvent("submitted_messages", {
       character_count: totalChars,
       selected_goal_count: prioritize.length,
@@ -560,10 +593,44 @@ function ImportView({ demo = false }: ImportExperienceProps) {
     let nextStats = analysisStats;
 
     try {
-      for (const message of pending) {
+      if (demo) {
+        for (const [index, message] of pending.entries()) {
+          setActiveMessages((current) =>
+            updateDraftStatus(current, message.id, "analyzing"),
+          );
+          scrollToMessage(message.id);
+          await wait(DEMO_ANALYSIS_DELAY_MS);
+          setCompletedCount((current) => current + 1);
+          setActiveMessages((current) =>
+            updateDraftStatus(current, message.id, "analyzed"),
+          );
+          scrollToNextAnalyzingMessage(pending, index);
+        }
+
+        const combined = migrateAnalysisResult(demoAnalysis);
+        const analyzedDrafts = pending.map((message) => ({
+          ...message,
+          status: "analyzed" as const,
+          analyzedAt: new Date().toISOString(),
+        }));
+
+        writeJson(storageKeys.currentAnalysis, combined);
+        writeJson(storageKeys.savedContacts, combined.contacts);
+        writeJson(storageKeys.importDraft, "");
+        writeJson(storageKeys.importDraftMessages, [createDraftMessage()]);
+        writeJson(storageKeys.previousImportMessages, analyzedDrafts);
+        setActiveMessages([createDraftMessage()]);
+        setPreviousMessages(analyzedDrafts);
+        toast.success("Demo messages analyzed");
+        router.push("/demo/board");
+        return;
+      }
+
+      for (const [index, message] of pending.entries()) {
         setActiveMessages((current) =>
           updateDraftStatus(current, message.id, "analyzing"),
         );
+        scrollToMessage(message.id);
 
         const response = await fetch("/api/analyze", {
           method: "POST",
@@ -610,6 +677,7 @@ function ImportView({ demo = false }: ImportExperienceProps) {
         setActiveMessages((current) =>
           updateDraftStatus(current, message.id, "analyzed"),
         );
+        scrollToNextAnalyzingMessage(pending, index);
       }
 
       const combined = combineAnalysisResults(results);
@@ -664,10 +732,16 @@ function ImportView({ demo = false }: ImportExperienceProps) {
                     optional.
                   </CardDescription>
                 </div>
-                <Button variant="outline" onClick={addMessage} disabled={isSubmitting}>
-                  <Plus className="size-4" />
-                  Add message
-                </Button>
+                {demo ? null : (
+                  <Button
+                    variant="outline"
+                    onClick={addMessage}
+                    disabled={isSubmitting}
+                  >
+                    <Plus className="size-4" />
+                    Add message
+                  </Button>
+                )}
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -698,10 +772,18 @@ function ImportView({ demo = false }: ImportExperienceProps) {
                 {activeMessages.map((message, index) => (
                   <MessageDraftCard
                     key={message.id}
+                    cardRef={(node) => {
+                      if (node) {
+                        messageRefs.current.set(message.id, node);
+                      } else {
+                        messageRefs.current.delete(message.id);
+                      }
+                    }}
                     message={message}
                     index={index}
                     list="active"
                     disabled={isSubmitting}
+                    readOnly={demo}
                     onDragStart={setDraggedMessage}
                     onDragEnd={() => setDraggedMessage(null)}
                     onChange={updateMessage}
@@ -733,21 +815,23 @@ function ImportView({ demo = false }: ImportExperienceProps) {
                           "animate-pulse shadow-lg shadow-primary/25 ring-4 ring-primary/20",
                       )}
                     >
-                    {isSubmitting ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : (
-                      <Sparkles className="size-4" />
-                    )}
-                    Analyze messages
+                      {isSubmitting ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <Sparkles className="size-4" />
+                      )}
+                      Analyze messages
                     </Button>
                   </div>
-                  <Button
-                    variant="outline"
-                    onClick={loadSample}
-                    disabled={isSubmitting}
-                  >
-                    Use sample inbox
-                  </Button>
+                  {demo ? null : (
+                    <Button
+                      variant="outline"
+                      onClick={loadSample}
+                      disabled={isSubmitting}
+                    >
+                      Use sample inbox
+                    </Button>
+                  )}
                 </div>
                 <span
                   className={cn(
@@ -761,57 +845,62 @@ function ImportView({ demo = false }: ImportExperienceProps) {
             </CardContent>
           </Card>
 
-          <div
-            className={cn(
-              "flex items-center justify-center gap-2 rounded-xl border border-dashed border-border/80 bg-muted/30 px-4 py-4 text-sm text-muted-foreground transition-colors",
-              draggedMessage && "border-destructive/60 bg-destructive/10 text-destructive",
-            )}
-            onDragOver={(event) => {
-              if (draggedMessage) event.preventDefault();
-            }}
-            onDrop={handleDropToTrash}
-          >
-            <Trash2 className="size-4" />
-            Drag messages here to delete
-          </div>
-
-          <section className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-sm font-semibold">Previous messages</h2>
-                <p className="text-xs text-muted-foreground">
-                  Already analyzed messages stay editable. Drag one back up to
-                  analyze it again.
-                </p>
-              </div>
-              <span className="rounded-full border border-border/80 px-2 py-0.5 text-xs tabular-nums text-muted-foreground">
-                {previousMessages.length}
-              </span>
+          {demo ? null : (
+            <div
+              className={cn(
+                "flex items-center justify-center gap-2 rounded-xl border border-dashed border-border/80 bg-muted/30 px-4 py-4 text-sm text-muted-foreground transition-colors",
+                draggedMessage &&
+                  "border-destructive/60 bg-destructive/10 text-destructive",
+              )}
+              onDragOver={(event) => {
+                if (draggedMessage) event.preventDefault();
+              }}
+              onDrop={handleDropToTrash}
+            >
+              <Trash2 className="size-4" />
+              Drag messages here to delete
             </div>
+          )}
 
-            {previousMessages.length > 0 ? (
-              <div className="space-y-3">
-                {previousMessages.map((message, index) => (
-                  <MessageDraftCard
-                    key={message.id}
-                    message={message}
-                    index={index}
-                    list="previous"
-                    disabled={isSubmitting}
-                    onDragStart={setDraggedMessage}
-                    onDragEnd={() => setDraggedMessage(null)}
-                    onChange={updateMessage}
-                    onRemove={(id) => removeMessage({ id, list: "previous" })}
-                    onMoveToActive={movePreviousToActive}
-                  />
-                ))}
+          {demo ? null : (
+            <section className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-sm font-semibold">Previous messages</h2>
+                  <p className="text-xs text-muted-foreground">
+                    Already analyzed messages stay editable. Drag one back up to
+                    analyze it again.
+                  </p>
+                </div>
+                <span className="rounded-full border border-border/80 px-2 py-0.5 text-xs tabular-nums text-muted-foreground">
+                  {previousMessages.length}
+                </span>
               </div>
-            ) : (
-              <div className="rounded-xl border border-dashed border-border/80 px-4 py-8 text-center text-sm text-muted-foreground">
-                Analyzed messages will appear here after import.
-              </div>
-            )}
-          </section>
+
+              {previousMessages.length > 0 ? (
+                <div className="space-y-3">
+                  {previousMessages.map((message, index) => (
+                    <MessageDraftCard
+                      key={message.id}
+                      message={message}
+                      index={index}
+                      list="previous"
+                      disabled={isSubmitting}
+                      onDragStart={setDraggedMessage}
+                      onDragEnd={() => setDraggedMessage(null)}
+                      onChange={updateMessage}
+                      onRemove={(id) => removeMessage({ id, list: "previous" })}
+                      onMoveToActive={movePreviousToActive}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-xl border border-dashed border-border/80 px-4 py-8 text-center text-sm text-muted-foreground">
+                  Analyzed messages will appear here after import.
+                </div>
+              )}
+            </section>
+          )}
         </div>
 
         <aside className="space-y-4">
@@ -862,20 +951,24 @@ function ImportView({ demo = false }: ImportExperienceProps) {
 }
 
 function MessageDraftCard({
+  cardRef,
   message,
   index,
   list,
   disabled,
+  readOnly = false,
   onDragStart,
   onDragEnd,
   onChange,
   onRemove,
   onMoveToActive,
 }: {
+  cardRef?: (node: HTMLDivElement | null) => void;
   message: ImportMessageDraft;
   index: number;
   list: MessageList;
   disabled: boolean;
+  readOnly?: boolean;
   onDragStart: (message: DraggedMessage) => void;
   onDragEnd: () => void;
   onChange: (
@@ -892,7 +985,8 @@ function MessageDraftCard({
 
   return (
     <div
-      draggable={!disabled}
+      ref={cardRef}
+      draggable={!disabled && !readOnly}
       onDragStart={() => onDragStart({ id: message.id, list })}
       onDragEnd={onDragEnd}
       className={cn(
@@ -939,15 +1033,17 @@ function MessageDraftCard({
               <RotateCcw className="size-4" />
             </Button>
           ) : null}
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={() => onRemove(message.id)}
-            disabled={disabled}
-            title="Delete message"
-          >
-            <Trash2 className="size-4" />
-          </Button>
+          {readOnly ? null : (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => onRemove(message.id)}
+              disabled={disabled}
+              title="Delete message"
+            >
+              <Trash2 className="size-4" />
+            </Button>
+          )}
         </div>
       </div>
 
@@ -959,9 +1055,12 @@ function MessageDraftCard({
           <Textarea
             value={message.body}
             onChange={(event) =>
-              onChange(list, message.id, { body: event.target.value })
+              readOnly
+                ? undefined
+                : onChange(list, message.id, { body: event.target.value })
             }
             disabled={disabled}
+            readOnly={readOnly}
             className="min-h-[150px] resize-y bg-background text-sm"
             placeholder="Paste the message here..."
           />
@@ -974,9 +1073,12 @@ function MessageDraftCard({
             <Input
               value={message.sender}
               onChange={(event) =>
-                onChange(list, message.id, { sender: event.target.value })
+                readOnly
+                  ? undefined
+                  : onChange(list, message.id, { sender: event.target.value })
               }
               disabled={disabled}
+              readOnly={readOnly}
               placeholder="Optional"
             />
           </div>
@@ -987,9 +1089,12 @@ function MessageDraftCard({
             <Input
               value={message.source}
               onChange={(event) =>
-                onChange(list, message.id, { source: event.target.value })
+                readOnly
+                  ? undefined
+                  : onChange(list, message.id, { source: event.target.value })
               }
               disabled={disabled}
+              readOnly={readOnly}
               placeholder="Email, Slack..."
             />
           </div>
@@ -1000,9 +1105,12 @@ function MessageDraftCard({
             <Input
               value={message.notes}
               onChange={(event) =>
-                onChange(list, message.id, { notes: event.target.value })
+                readOnly
+                  ? undefined
+                  : onChange(list, message.id, { notes: event.target.value })
               }
               disabled={disabled}
+              readOnly={readOnly}
               placeholder="Optional"
             />
           </div>

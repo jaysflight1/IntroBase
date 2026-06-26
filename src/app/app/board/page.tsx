@@ -11,6 +11,8 @@ import {
   GripVertical,
   KanbanSquare,
   MailCheck,
+  MousePointerClick,
+  Move,
   Plus,
   Trash2,
 } from "lucide-react";
@@ -201,6 +203,9 @@ export function BoardExperience({ demo = false }: BoardExperienceProps) {
   const [dragTarget, setDragTarget] = useState<DragTarget | null>(null);
   const [deadlineDraft, setDeadlineDraft] = useState("");
   const [replyDraft, setReplyDraft] = useState("");
+  const [tutorialStep, setTutorialStep] = useState<number | null>(
+    demo ? 0 : null,
+  );
 
   useEffect(() => {
     void Promise.resolve().then(() => {
@@ -295,6 +300,11 @@ export function BoardExperience({ demo = false }: BoardExperienceProps) {
     },
     [boardOrder, visibleMessages],
   );
+  const firstVisibleMessageId = useMemo(
+    () => grouped.flatMap((column) => column.messages).at(0)?.id,
+    [grouped],
+  );
+  const showTutorial = demo && tutorialStep !== null;
 
   function persist(
     nextMessages: AnalyzedMessage[],
@@ -482,6 +492,9 @@ export function BoardExperience({ demo = false }: BoardExperienceProps) {
     } else {
       void logEvent("reordered_message", { message_id: messageId });
     }
+    if (demo && tutorialStep === 2) {
+      setTutorialStep(3);
+    }
   }
 
   function deleteMessage(messageId: string) {
@@ -655,6 +668,9 @@ export function BoardExperience({ demo = false }: BoardExperienceProps) {
     setDeadlineDraft(message.deadline || getTimingLabel(message.urgency));
     setReplyDraft(message.suggestedReply);
     setSelected(message);
+    if (demo && tutorialStep === 1) {
+      setTutorialStep(2);
+    }
     void logEvent("opened_message", {
       message_id: message.id,
       category: message.category,
@@ -754,6 +770,14 @@ export function BoardExperience({ demo = false }: BoardExperienceProps) {
 
   return (
     <div className="space-y-6">
+      {showTutorial ? (
+        <DemoBoardTutorial
+          step={tutorialStep}
+          onNext={() => setTutorialStep((current) => (current ?? 0) + 1)}
+          onSkip={() => setTutorialStep(null)}
+        />
+      ) : null}
+
       <PageHeader
         title="Board"
         description={`${analysis.messageCount} ${
@@ -845,6 +869,14 @@ export function BoardExperience({ demo = false }: BoardExperienceProps) {
                       dragTarget?.messageId === message.id &&
                         dragTarget.position === "after" &&
                         "ring-2 ring-ring/45 ring-offset-2",
+                      demo &&
+                        tutorialStep === 1 &&
+                        message.id === firstVisibleMessageId &&
+                        "animate-pulse ring-4 ring-primary/25 ring-offset-2",
+                      demo &&
+                        tutorialStep === 2 &&
+                        message.id === firstVisibleMessageId &&
+                        "ring-4 ring-primary/25 ring-offset-2",
                     )}
                   >
                     <div className="flex items-start justify-between gap-2">
@@ -1099,4 +1131,80 @@ export function BoardExperience({ demo = false }: BoardExperienceProps) {
 
 export default function BoardPage() {
   return <BoardExperience />;
+}
+
+function DemoBoardTutorial({
+  step,
+  onNext,
+  onSkip,
+}: {
+  step: number;
+  onNext: () => void;
+  onSkip: () => void;
+}) {
+  const tutorialContent = [
+    {
+      icon: KanbanSquare,
+      title: "This is your board",
+      body: "Introbase groups messages by when they need attention. The most urgent items are on the left, and lower-priority items move to the right.",
+      action: "Show me",
+    },
+    {
+      icon: MousePointerClick,
+      title: "Click a message",
+      body: "Open any message to edit its deadline or suggested reply, then close the popup to return to the board.",
+      action: "",
+    },
+    {
+      icon: Move,
+      title: "Drag a message",
+      body: "Drag a card within a column to reorder it, or drop it into another column to change its timing and priority.",
+      action: "",
+    },
+    {
+      icon: CheckCircle2,
+      title: "You are ready",
+      body: "That is the core loop: import messages, analyze them, and work from the board without losing important follow-ups.",
+      action: "Finish",
+    },
+  ];
+  const content = tutorialContent[Math.min(step, tutorialContent.length - 1)];
+  const Icon = content.icon;
+
+  return (
+    <div className="fixed top-4 right-4 z-50 w-[min(calc(100vw-2rem),360px)] rounded-lg border border-border/80 bg-card p-4 shadow-xl">
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <span className="flex size-8 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <Icon className="size-4" />
+          </span>
+          <div>
+            <p className="text-sm font-semibold">{content.title}</p>
+            <p className="text-xs text-muted-foreground">
+              Step {Math.min(step + 1, 4)} of 4
+            </p>
+          </div>
+        </div>
+        <Button variant="ghost" size="xs" onClick={onSkip}>
+          Skip tutorial
+        </Button>
+      </div>
+      <p className="text-sm leading-6 text-muted-foreground">{content.body}</p>
+      {content.action ? (
+        <Button
+          className="mt-4 w-full"
+          size="sm"
+          onClick={step >= 3 ? onSkip : onNext}
+        >
+          {content.action}
+        </Button>
+      ) : (
+        <p className="mt-4 rounded-md bg-muted px-3 py-2 text-xs font-medium text-muted-foreground">
+          {step === 1
+            ? "Try clicking the highlighted card."
+            : "Try dragging the highlighted card."}
+        </p>
+      )}
+    </div>
+  );
 }
