@@ -1343,7 +1343,7 @@ function DemoFeedbackPrompt({
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => (!nextOpen ? onDone() : null)}>
-      <DialogContent className="max-h-[min(760px,calc(100vh-2rem))] overflow-y-auto sm:max-w-2xl">
+      <DialogContent className="max-h-[min(760px,calc(100vh-2rem))] overflow-y-auto sm:max-w-5xl">
         <button
           type="button"
           onClick={onDone}
@@ -1359,7 +1359,7 @@ function DemoFeedbackPrompt({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6">
+        <div className="grid items-start gap-4 lg:grid-cols-3">
           <FeedbackChoiceGroup
             label="How useful are IntroBase's message rankings?"
             options={usefulnessOptions}
@@ -1408,7 +1408,7 @@ function FeedbackChoiceGroup({
   return (
     <fieldset className="space-y-3">
       <legend className="text-sm font-semibold leading-6">{label}</legend>
-      <div className="grid gap-2 sm:grid-cols-2">
+      <div className="grid gap-2">
         {options.map((option) => (
           <button
             key={option}
