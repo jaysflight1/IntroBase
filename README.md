@@ -1,26 +1,50 @@
-# Introbase
+# IntroBase
 
-Introbase is an AI command center for inbound messages. It helps founders and busy builders turn scattered emails, DMs, Slack messages, Discord messages, texts, and connection requests into a prioritized reply board with suggested actions, draft replies, contacts, and follow-ups.
+IntroBase is an AI command center for inbound messages. It helps founders and busy builders turn scattered emails, DMs, Slack messages, Discord messages, texts, and connection requests into a prioritized reply board with deadlines, suggested actions, editable suggested replies, contacts, and follow-ups.
 
-The app is built as a privacy-conscious beta: manual pasted message analysis keeps raw pasted text out of Supabase by default, while optional Gmail and Slack integrations can import authorized messages for authenticated users.
+The current product supports:
+
+- Streamlined Google sign-in through Supabase Auth.
+- Paste-in message importing as the primary workflow.
+- A guided public demo with sample messages and fake one-second-per-message analysis.
+- Slack as the available inbox integration.
+- Gmail shown as coming soon, but not available in the product UI.
+- OpenAI `gpt-4.1-mini` analysis when `OPENAI_API_KEY` is configured, with a local parser fallback.
+
+## Product Flow
+
+1. Visitors land on `/`, where they can try the demo or sign in.
+2. New account creators are sent to `/app/onboarding`, where they can choose the guided demo tutorial or jump straight into a blank workspace.
+3. Returning signed-in users open `/app`; if they already have an analyzed board in this browser, they are sent to `/app/board`, otherwise they start at `/app/import`.
+4. Users paste messages into modular message cards on `/app/import`. Each card supports a message body plus optional sender, source, and notes.
+5. IntroBase analyzes each message, marks progress message-by-message, and then opens the board.
+6. The board groups messages by urgency: Today, This week, This month, Later, and Ignore.
+7. Users can drag messages between columns, reorder cards within columns, edit deadline pills, edit suggested replies, save contacts, create follow-ups, and delete messages.
 
 ## Features
 
-- Landing page with product positioning, sample priority cards, and anonymous visit logging.
-- Supabase Auth with Google sign-in, protected `/app` routes, profile creation, and sign-out.
-- Manual message import at `/app/import` with goal/context controls, sample inbox loading, a 25,000 character beta limit, and local draft persistence.
-- AI-assisted analysis through OpenAI `gpt-4.1-mini` when `OPENAI_API_KEY` is configured, with a local heuristic fallback when it is not.
-- Priority board at `/app/board` grouped by reply timing: today, this week, this month, later, and ignored.
-- Message detail view with summaries, priority scores, why-it-matters explanations, suggested actions, and copyable suggested replies.
-- Local contact management at `/app/contacts` with extracted contacts, notes, priority marking, and follow-up creation.
-- Local follow-up tracker at `/app/followups` with upcoming, due today, overdue, and done states.
-- Feedback collection and willingness-to-pay survey at `/app/feedback`.
-- Founder/admin metrics dashboard at `/admin`, protected by `ADMIN_PASSWORD`.
-- Anonymous analytics for MVP usage events, analysis batches, feedback, copied replies, saved contacts, and follow-up creation.
-- Optional read-only Gmail integration with OAuth, encrypted token storage, manual sync, disconnect, and optional Pub/Sub webhook support.
-- Optional read-only Slack integration with OAuth, encrypted token storage, manual sync, disconnect, signature verification, and event webhook handling.
-- Server-side persistence for integration-imported source messages and analyzed messages.
-- Vitest coverage for parsing, OAuth helpers, webhook validation, token encryption, auth redirects, schemas, fallback analysis, and follow-up logic.
+- Public landing page with sample priority board, demo CTA, Google sign-in CTA, footer privacy link, and anonymous visit logging.
+- Public `/privacy` page with current product disclosures for pasted messages, account storage, OpenAI processing, Slack, future Gmail support, analytics, and deletion.
+- Supabase Auth with Google sign-in, protected `/app` routes, profile creation, sign-out, and first-run onboarding.
+- Guided demo routes at `/demo/import` and `/demo/board` using the same example messages as the main sample inbox, but with read-only demo messages and simulated analysis.
+- Manual import at `/app/import` with one card per message, optional sender/source/notes fields, drag-to-delete import cards, previous analyzed messages, progress tracking, and local draft persistence.
+- AI-assisted analysis through OpenAI `gpt-4.1-mini` when configured.
+- Local heuristic fallback parser when OpenAI is unavailable, invalid, or not configured.
+- Analysis diagnostics that track OpenAI vs fallback usage locally.
+- Analysis rate limiting at `100` analyzed batches per anonymous user per hour when Supabase is configured, with a hard-coded admin exemption in `src/lib/analysis/rateLimit.ts`.
+- Prioritized board at `/app/board` grouped by reply timing with editable cards, drag-and-drop movement, manual ordering, editable deadlines, editable suggested replies, and a delete target.
+- Collapsible board sidebar so message columns can use more horizontal space.
+- Contacts page at `/app/contacts` with extracted contacts, notes, star/unstar behavior, saved contacts, priority timing, and follow-up creation.
+- Follow-up tracker at `/app/followups` with upcoming, due today, overdue, and done states.
+- Integrations page at `/app/integrations` where Slack is available and Gmail is greyed out as coming soon.
+- Account page at `/app/account` with account identity, integration access note, and delete-data action.
+- Feedback collection at `/app/feedback`.
+- Password-protected admin metrics dashboard at `/admin` using `ADMIN_PASSWORD`.
+- Anonymous metrics for essential activity such as visits, message creation, analysis attempts, analysis results, repeat usage, feedback, saved contacts, and follow-ups.
+- Vercel Analytics through `@vercel/analytics/next`.
+- Slack OAuth, encrypted token storage, manual sync, disconnect, signature verification, Events API support, and queued sync processing.
+- Server-side persistence for integration-imported source messages, analyzed messages, saved contacts, and follow-ups.
+- Vitest coverage for parsing, schemas, fallback analysis, reply timing, auth redirects, OAuth helpers, Slack/Gmail helper code, sync jobs, token encryption, and follow-up logic.
 
 ## Tech Stack
 
@@ -28,9 +52,11 @@ The app is built as a privacy-conscious beta: manual pasted message analysis kee
 - React 19
 - TypeScript
 - Tailwind CSS 4
-- shadcn/ui-style components
+- Base UI / shadcn-style components
 - Supabase Auth and Postgres
 - OpenAI Chat Completions API
+- Slack OAuth and Events API
+- Vercel Analytics
 - Vitest
 - ESLint
 - Vercel-ready deployment
@@ -43,23 +69,25 @@ The app is built as a privacy-conscious beta: manual pasted message analysis kee
 ├── src/
 │   ├── app/                        Next.js App Router routes
 │   │   ├── admin/                  Password-protected founder metrics
-│   │   ├── api/                    Route handlers for analysis, metrics, integrations, and webhooks
+│   │   ├── api/                    Route handlers for analysis, metrics, Slack, storage, and webhooks
 │   │   ├── app/                    Authenticated product screens
 │   │   ├── auth/                   Supabase auth callback and sign-out routes
-│   │   ├── login/                  Login UI
-│   │   ├── layout.tsx              Root layout
+│   │   ├── demo/                   Public demo import and board flow
+│   │   ├── login/                  Google sign-in UI
+│   │   ├── privacy/                Public privacy policy
+│   │   ├── layout.tsx              Root layout and Vercel Analytics
 │   │   └── page.tsx                Public landing page
 │   ├── components/                 Shared navigation, landing, logging, and UI components
-│   ├── data/                       Sample inbox and default goal options
+│   ├── data/                       Sample inbox, demo analysis, and default goal options
 │   ├── lib/                        Analysis, auth, integrations, storage, security, and utility code
-│   │   ├── analysis/               OpenAI analysis path and local fallback analyzer
+│   │   ├── analysis/               OpenAI analysis path, diagnostics, rate limiting, and local fallback analyzer
 │   │   ├── auth/                   Profile and redirect helpers
-│   │   ├── integrations/           Gmail, Slack, OAuth state, sync, and board helpers
+│   │   ├── integrations/           Slack, Gmail/future support helpers, OAuth state, sync, and board helpers
 │   │   ├── security/               Token encryption helpers
 │   │   └── supabase/               Browser, server, and auth clients
 │   ├── types/                      Shared TypeScript domain types
 │   └── proxy.ts                    Auth-aware route protection for `/app` and `/login`
-├── supabase/migrations/            Database schema for analytics, profiles, and integrations
+├── supabase/migrations/            Database schema for analytics, auth profiles, integrations, relationships, and grants
 ├── package.json                    Scripts and dependencies
 └── vitest.config.mts               Test configuration
 ```
@@ -67,52 +95,70 @@ The app is built as a privacy-conscious beta: manual pasted message analysis kee
 ## App Routes
 
 - `/` - public landing page.
-- `/login` - Supabase Google sign-in.
-- `/app` - redirects to `/app/import` or `/app/board` based on local analysis state.
-- `/app/import` - manual message paste/import flow.
+- `/privacy` - public privacy policy.
+- `/login` - Google sign-in through Supabase Auth.
+- `/demo` - redirects to `/demo/import`.
+- `/demo/import` - guided sample import with pre-filled, read-only example messages and fake analysis progress.
+- `/demo/board` - guided sample board tutorial.
+- `/app` - signed-in app entry point; sends returning users with existing local analysis to the board and others to import.
+- `/app/onboarding` - first-run choice between demo tutorial and blank workspace.
+- `/app/import` - paste-in message workflow.
 - `/app/board` - prioritized reply board.
-- `/app/contacts` - local relationship/contact table.
-- `/app/followups` - local follow-up tracker.
-- `/app/integrations` - Gmail and Slack connection management.
-- `/app/account` - authenticated account screen.
+- `/app/contacts` - saved relationship/contact table.
+- `/app/followups` - follow-up tracker.
+- `/app/integrations` - Slack connection management; Gmail shown as coming soon.
+- `/app/account` - authenticated account and data deletion screen.
 - `/app/feedback` - product feedback and willingness-to-pay survey.
-- `/admin` - founder metrics dashboard.
+- `/admin` - founder metrics dashboard protected by `ADMIN_PASSWORD`.
 
 ## API Routes
 
-- `POST /api/analyze` - validates and analyzes pasted messages, rate-limited to 5 batches per anonymous user per hour when Supabase is configured.
-- `GET /api/board` - returns analyzed Gmail/Slack messages for the authenticated user.
+- `POST /api/analyze` - validates and analyzes pasted messages, with OpenAI-first analysis and local fallback.
+- `GET /api/board` - returns server-stored analyzed Slack/Gmail/future integration messages for the authenticated user.
 - `/api/contacts` - loads and saves authenticated user contacts.
 - `/api/followups` - loads and saves authenticated user follow-ups.
-- `POST /api/account/delete-data` - deletes authenticated Introbase data and integration tokens.
+- `POST /api/account/delete-data` - deletes authenticated IntroBase data and integration tokens.
 - `POST /api/events` - logs anonymous product events.
 - `POST /api/feedback` - stores survey responses and optional emails.
 - `GET /api/metrics` - returns admin metrics when `x-admin-password` matches `ADMIN_PASSWORD`.
-- `/api/integrations/gmail/*` - Gmail connect, callback, sync-now, and disconnect routes.
 - `/api/integrations/slack/*` - Slack connect, callback, sync-now, and disconnect routes.
-- `/api/webhooks/gmail/pubsub` - optional Gmail Pub/Sub push endpoint.
 - `/api/webhooks/slack/events` - Slack Events API endpoint with challenge and signature handling.
-- `/api/cron/*` - protected cron endpoints for queued sync processing, Gmail watch renewal, and fallback polling.
+- `/api/cron/process-sync-jobs` - protected cron endpoint for queued integration sync jobs.
+- `/api/cron/fallback-poll` - protected cron endpoint for fallback polling.
+- `/api/integrations/gmail/*`, `/api/webhooks/gmail/pubsub`, and `/api/cron/gmail-watch-renewal` - code exists for Gmail/future support, but Gmail is not currently available in the product UI.
 
 ## Data and Storage Model
 
-Manual pasted messages are analyzed server-side, but the raw pasted text is not stored in Supabase by default. The resulting board, extracted contacts, drafts, and follow-ups are stored in browser local storage for the beta.
+IntroBase uses both browser local storage and Supabase-backed server storage.
+
+Browser local storage is used for:
+
+- Anonymous user and session identifiers.
+- Import drafts and previous import cards.
+- Current manual-analysis board state.
+- Demo board state.
+- Board ordering and deleted-message state.
+- Saved contacts and follow-ups for fast local UX.
+- Local analysis diagnostics.
 
 Supabase is used for:
 
 - Anonymous analytics events.
 - Message batch metadata and aggregate counts.
-- Feedback responses and email signups.
+- Feedback responses and optional emails.
 - Auth user profiles.
-- Connected Gmail/Slack account records.
+- Connected Slack account records.
 - Encrypted integration tokens.
 - Integration-imported source messages.
 - Integration-generated analyzed messages.
 - Sync cursors and account sync state.
 - Durable sync jobs for webhook-triggered and fallback processing.
 - Saved contacts and follow-ups for authenticated users.
+- Admin metrics.
 
-OAuth tokens are encrypted before storage with `TOKEN_ENCRYPTION_KEY`. Row-level security policies are enabled for user-owned profile and integration tables.
+Manual pasted messages are sent to the server for analysis and may be sent to OpenAI. The current app also stores the analyzed board in the user's browser and may store account-backed board/contact/follow-up data so users can view their board. See `/privacy` for the user-facing privacy disclosure.
+
+OAuth tokens are encrypted before storage with `TOKEN_ENCRYPTION_KEY`. Row-level security policies are enabled for user-owned profile, integration, contact, and follow-up tables, and service-role grants are applied through migrations for server-side jobs.
 
 ## Local Setup
 
@@ -122,36 +168,56 @@ cp .env.local.example .env.local
 npm run dev
 ```
 
-The local app runs at `http://localhost:3000`.
+The local app runs at:
+
+```text
+http://localhost:3000
+```
 
 ## Environment Variables
+
+Required for Google sign-in and account-backed storage:
 
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_ANON_KEY=
 SUPABASE_SERVICE_ROLE_KEY=
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+```
 
+Required for OpenAI analysis:
+
+```bash
+OPENAI_API_KEY=
+```
+
+Required for Slack integration:
+
+```bash
+SLACK_CLIENT_ID=
+SLACK_CLIENT_SECRET=
+SLACK_SIGNING_SECRET=
 TOKEN_ENCRYPTION_KEY=
 OAUTH_STATE_SECRET=
+```
+
+Required for admin and cron features:
+
+```bash
+ADMIN_PASSWORD=
+CRON_SECRET=
+```
+
+Present for future or currently unavailable Gmail support:
+
+```bash
 GOOGLE_GMAIL_CLIENT_ID=
 GOOGLE_GMAIL_CLIENT_SECRET=
 GOOGLE_GMAIL_PUBSUB_TOPIC=
 GMAIL_PUBSUB_WEBHOOK_TOKEN=
-
-SLACK_CLIENT_ID=
-SLACK_CLIENT_SECRET=
-SLACK_SIGNING_SECRET=
-
-OPENAI_API_KEY=
-# or ANTHROPIC_API_KEY=
-
-ADMIN_PASSWORD=
-CRON_SECRET=
-
-NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
-Current implementation note: `OPENAI_API_KEY` enables the OpenAI analysis path. `ANTHROPIC_API_KEY` is present in the example for future provider flexibility, but there is no Anthropic runtime path in the current code.
+Implementation note: `OPENAI_API_KEY` is the active LLM provider path. `ANTHROPIC_API_KEY` may appear in older environment examples, but there is no active Anthropic runtime path in the current code.
 
 ## Supabase Setup
 
@@ -163,41 +229,26 @@ supabase/migrations/002_profiles_auth.sql
 supabase/migrations/003_gmail_integration.sql
 supabase/migrations/004_sync_jobs.sql
 supabase/migrations/005_saved_relationships.sql
+supabase/migrations/006_service_role_grants.sql
+supabase/migrations/007_contact_starred.sql
 ```
 
-Enable Google as an OAuth provider in Supabase Auth and add the local callback URL to the redirect allow list:
+The `003_gmail_integration.sql` migration also defines shared integration storage used by the current Slack path. Gmail-facing UI remains disabled/coming soon.
+
+Enable Google as an OAuth provider in Supabase Auth for sign-in. Add local and production auth callback URLs to the Supabase redirect allow list:
 
 ```text
 http://localhost:3000/auth/callback
+https://YOUR_PRODUCTION_DOMAIN/auth/callback
 ```
 
-For production, add the deployed `/auth/callback` URL as well.
+In Google Cloud, the OAuth client used by Supabase sign-in should also allow the Supabase Auth callback URL for your project. The app itself uses `/auth/callback` after Supabase redirects back to the site.
 
-## Gmail Integration
+## OpenAI Setup
 
-Gmail sign-in is separate from Supabase sign-in. Create a Google OAuth client for Gmail read-only access and add this callback URL:
+Set `OPENAI_API_KEY` in `.env.local` and in production. The current prompt targets `gpt-4.1-mini` through the OpenAI Chat Completions API.
 
-```text
-http://localhost:3000/api/integrations/gmail/callback
-```
-
-The Gmail integration requests only:
-
-```text
-https://www.googleapis.com/auth/gmail.readonly
-```
-
-It can read authorized inbox messages, normalize them, store source messages, analyze pending messages, and add results to the authenticated user's board. It cannot send, delete, archive, or modify emails.
-
-For automatic updates, configure a Google Cloud Pub/Sub topic in `GOOGLE_GMAIL_PUBSUB_TOPIC` and point the push subscription to:
-
-```text
-http://localhost:3000/api/webhooks/gmail/pubsub
-```
-
-If `GMAIL_PUBSUB_WEBHOOK_TOKEN` is set, include it as `?token=...` on the push endpoint.
-
-Production automatic sync uses `vercel.json` cron schedules. Set `CRON_SECRET` in the deployment environment so Vercel cron requests include the expected bearer token for `/api/cron/process-sync-jobs`, `/api/cron/gmail-watch-renewal`, and `/api/cron/fallback-poll`.
+If the key is missing, OpenAI requests fail, or the response does not validate against the expected schema, IntroBase falls back to the local parser and records diagnostics in the returned analysis and local diagnostics counters.
 
 ## Slack Integration
 
@@ -207,13 +258,53 @@ Create a Slack app with OAuth v2 and add this redirect URL:
 http://localhost:3000/api/integrations/slack/callback
 ```
 
-Set `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`, and `SLACK_SIGNING_SECRET`. The Slack integration is read-only and imports messages the installed Slack app is allowed to access. It does not request `chat:write`.
+For production, add:
+
+```text
+https://YOUR_PRODUCTION_DOMAIN/api/integrations/slack/callback
+```
+
+Set:
+
+```bash
+SLACK_CLIENT_ID=
+SLACK_CLIENT_SECRET=
+SLACK_SIGNING_SECRET=
+TOKEN_ENCRYPTION_KEY=
+OAUTH_STATE_SECRET=
+NEXT_PUBLIC_APP_URL=
+```
+
+The Slack integration is read-only from the product perspective and imports messages the installed Slack app is allowed to access. It does not request `chat:write`.
 
 When enabling Slack Events API, set the request URL to:
 
 ```text
 http://localhost:3000/api/webhooks/slack/events
 ```
+
+For production:
+
+```text
+https://YOUR_PRODUCTION_DOMAIN/api/webhooks/slack/events
+```
+
+Slack sync can be run manually from `/app/integrations`. Webhook and queued sync processing use `/api/cron/process-sync-jobs` and `/api/cron/fallback-poll`, protected by `CRON_SECRET`.
+
+## Gmail Status
+
+Gmail is not currently available in the app UI. `/app/integrations` shows Gmail as coming soon and directs users to Slack or manual paste-in import.
+
+Some Gmail helper code, route handlers, tests, schema, and cron configuration still exist in the repository for future support. Do not present Gmail as a live integration until the product UI and deployment configuration are intentionally re-enabled.
+
+## Privacy and Compliance Notes
+
+- The public Privacy Policy lives at `/privacy` and is linked from the homepage footer.
+- The Import page includes a short privacy notice explaining that message content may be sent to OpenAI and stored in the user's account.
+- IntroBase does not sell user data or use message content for advertising.
+- Slack tokens are encrypted before storage.
+- The Account page includes a delete-data action for authenticated users.
+- Google sign-in is streamlined for authentication only; Gmail access is separate and currently unavailable in the UI.
 
 ## Scripts
 
@@ -233,4 +324,17 @@ The test suite uses Vitest:
 npm run test
 ```
 
-Current tests cover core non-UI logic, including schema validation, local fallback analysis, normalization, follow-up status calculation, auth redirects, OAuth state signing, Gmail/Slack parsers, Gmail Pub/Sub validation, Slack signature validation, and token encryption.
+Current tests cover core non-UI logic, including schema validation, local fallback analysis, OpenAI response repair, reply timing, message parsing, follow-up status calculation, auth redirects, OAuth state signing, Slack parser/signature logic, Gmail helper logic retained for future support, integration sync jobs, token encryption, and profile mapping.
+
+For documentation-only changes, `npm run lint` is usually enough as a lightweight sanity check. For code changes touching analysis, integrations, auth, or persistence, run both:
+
+```bash
+npm run lint
+npm run test
+```
+
+Run a production build before deployment:
+
+```bash
+npm run build
+```
