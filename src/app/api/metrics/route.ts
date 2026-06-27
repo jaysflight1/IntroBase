@@ -189,7 +189,7 @@ export async function GET(request: Request) {
   const willingPaid = feedback.filter(
     (item) =>
       item.willingness_to_pay &&
-      !["I would not pay", "Maybe"].includes(item.willingness_to_pay),
+      !["$0", "I would not pay", "Maybe"].includes(item.willingness_to_pay),
   ).length;
 
   return metricsResponse({

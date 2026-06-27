@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import type { DragEvent, KeyboardEvent } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Archive,
   CheckCircle2,
@@ -15,7 +15,9 @@ import {
   MousePointerClick,
   Move,
   Plus,
+  Send,
   Trash2,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -38,6 +40,7 @@ import {
 } from "@/components/ui/dialog";
 import { EmptyState } from "@/components/EmptyState";
 import { PageHeader } from "@/components/PageHeader";
+import { getAnonymousUserId, getSessionId } from "@/lib/anonymousUser";
 import { readJson, writeJson } from "@/lib/browserStorage";
 import { logEvent } from "@/lib/logEvent";
 import { makeClientId } from "@/lib/normalize";
@@ -209,6 +212,7 @@ export function BoardExperience(props: BoardExperienceProps) {
 }
 
 function BoardView({ demo = false }: BoardExperienceProps) {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const storageKeys = useMemo(() => getBoardStorageKeys(demo), [demo]);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
@@ -223,6 +227,7 @@ function BoardView({ demo = false }: BoardExperienceProps) {
   const [tutorialStep, setTutorialStep] = useState<number | null>(
     demo ? 0 : null,
   );
+  const [showDemoFeedback, setShowDemoFeedback] = useState(false);
   const demoReturnTo = useMemo(() => {
     if (!demo) return "";
 
@@ -331,6 +336,15 @@ function BoardView({ demo = false }: BoardExperienceProps) {
     [grouped],
   );
   const showTutorial = demo && tutorialStep !== null;
+
+  function finishDemoFeedback() {
+    setShowDemoFeedback(false);
+    setTutorialStep(null);
+
+    if (demoReturnTo) {
+      router.push(demoReturnTo);
+    }
+  }
 
   function persist(
     nextMessages: AnalyzedMessage[],
@@ -802,6 +816,13 @@ function BoardView({ demo = false }: BoardExperienceProps) {
           returnTo={demoReturnTo}
           onNext={() => setTutorialStep((current) => (current ?? 0) + 1)}
           onSkip={() => setTutorialStep(null)}
+          onComplete={() => setShowDemoFeedback(true)}
+        />
+      ) : null}
+      {demo ? (
+        <DemoFeedbackPrompt
+          open={showDemoFeedback}
+          onDone={finishDemoFeedback}
         />
       ) : null}
 
@@ -1165,11 +1186,13 @@ function DemoBoardTutorial({
   returnTo,
   onNext,
   onSkip,
+  onComplete,
 }: {
   step: number;
   returnTo?: string;
   onNext: () => void;
   onSkip: () => void;
+  onComplete: () => void;
 }) {
   const tutorialContent = [
     {
@@ -1232,22 +1255,13 @@ function DemoBoardTutorial({
       </div>
       <p className="text-sm leading-6 text-muted-foreground">{content.body}</p>
       {content.action ? (
-        finalStep && returnTo ? (
-          <Link
-            href={returnTo}
-            className={buttonVariants({ className: "mt-4 w-full", size: "sm" })}
-          >
-            {content.action}
-          </Link>
-        ) : (
-          <Button
-            className="mt-4 w-full"
-            size="sm"
-            onClick={finalStep ? onSkip : onNext}
-          >
-            {content.action}
-          </Button>
-        )
+        <Button
+          className="mt-4 w-full"
+          size="sm"
+          onClick={finalStep ? onComplete : onNext}
+        >
+          {content.action}
+        </Button>
       ) : (
         <p className="mt-4 rounded-md bg-muted px-3 py-2 text-xs font-medium text-muted-foreground">
           {step === 1
@@ -1256,5 +1270,159 @@ function DemoBoardTutorial({
         </p>
       )}
     </div>
+  );
+}
+
+const usefulnessOptions = [
+  "Very useful",
+  "Somewhat useful",
+  "Slightly useful",
+  "Not useful",
+];
+
+const wouldUseOptions = ["Yes", "Likely", "Maybe", "No"];
+
+const willingnessOptions = [
+  "$0",
+  "$5/month",
+  "$10/month",
+  "$20/month",
+  "$50/month",
+  "$100+/month if it worked well",
+];
+
+function DemoFeedbackPrompt({
+  open,
+  onDone,
+}: {
+  open: boolean;
+  onDone: () => void;
+}) {
+  const [usefulnessRating, setUsefulnessRating] = useState("");
+  const [wouldUseAgain, setWouldUseAgain] = useState("");
+  const [willingnessToPay, setWillingnessToPay] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const canSubmit = Boolean(
+    usefulnessRating && wouldUseAgain && willingnessToPay,
+  );
+
+  async function submitFeedback() {
+    if (!canSubmit) {
+      toast.error("Answer each question or skip feedback.");
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const response = await fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          anonymous_user_id: getAnonymousUserId(),
+          session_id: getSessionId(),
+          usefulness_rating: usefulnessRating,
+          would_use_again: wouldUseAgain,
+          willingness_to_pay: willingnessToPay,
+          expanded_version_interest: "Completed demo feedback",
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Could not save feedback");
+      }
+
+      toast.success("Thanks for the feedback");
+      onDone();
+    } catch {
+      toast.error("IntroBase could not save feedback. You can still continue.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(nextOpen) => (!nextOpen ? onDone() : null)}>
+      <DialogContent className="max-h-[min(760px,calc(100vh-2rem))] overflow-y-auto sm:max-w-2xl">
+        <button
+          type="button"
+          onClick={onDone}
+          className="absolute top-4 right-4 rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          aria-label="Skip feedback"
+        >
+          <X className="size-4" />
+        </button>
+        <DialogHeader>
+          <DialogTitle>Quick feedback</DialogTitle>
+          <DialogDescription>
+            Optional, but helpful while IntroBase is still early.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-6">
+          <FeedbackChoiceGroup
+            label="How useful are IntroBase's message rankings?"
+            options={usefulnessOptions}
+            value={usefulnessRating}
+            onChange={setUsefulnessRating}
+          />
+          <FeedbackChoiceGroup
+            label="Would you use a more developed version of IntroBase if it connected to your real inboxes/DMs, prioritized messages automatically, drafted replies, and reminded you to follow up?"
+            options={wouldUseOptions}
+            value={wouldUseAgain}
+            onChange={setWouldUseAgain}
+          />
+          <FeedbackChoiceGroup
+            label="If an expanded version connected to your real inboxes/DMs, prioritized messages automatically, drafted replies, and reminded you to follow up, what would you pay per month?"
+            options={willingnessOptions}
+            value={willingnessToPay}
+            onChange={setWillingnessToPay}
+          />
+        </div>
+
+        <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <Button variant="ghost" onClick={onDone} disabled={isSubmitting}>
+            Skip feedback
+          </Button>
+          <Button onClick={submitFeedback} disabled={isSubmitting || !canSubmit}>
+            <Send className="size-4" />
+            Submit feedback
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function FeedbackChoiceGroup({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: string[];
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <fieldset className="space-y-3">
+      <legend className="text-sm font-semibold leading-6">{label}</legend>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {options.map((option) => (
+          <button
+            key={option}
+            type="button"
+            onClick={() => onChange(option)}
+            className={cn(
+              "rounded-lg border border-border/80 bg-card px-3 py-2 text-left text-sm transition-colors hover:border-primary/50 hover:bg-primary/5",
+              value === option && "border-primary bg-primary/10 text-primary",
+            )}
+          >
+            {option}
+          </button>
+        ))}
+      </div>
+    </fieldset>
   );
 }

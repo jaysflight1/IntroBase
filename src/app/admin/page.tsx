@@ -182,11 +182,17 @@ export default function AdminPage() {
           <section className="grid gap-4 md:grid-cols-3">
             <Breakdown title="Analysis models" values={metrics.analysisModels} />
             <Breakdown title="Usefulness" values={metrics.usefulRatings} />
-            <Breakdown title="Would use again" values={metrics.wouldUseAgain} />
+            <Breakdown
+              title="Would use expanded version"
+              values={metrics.wouldUseAgain}
+            />
           </section>
 
           <section className="grid gap-4 md:grid-cols-3">
-            <Breakdown title="Willingness to pay" values={metrics.willingnessToPay} />
+            <Breakdown
+              title="Monthly willingness to pay"
+              values={metrics.willingnessToPay}
+            />
             <Card>
               <CardHeader>
                 <CardDescription>Feedback forms</CardDescription>
