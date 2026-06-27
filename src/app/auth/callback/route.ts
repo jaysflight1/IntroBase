@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { shouldShowNewUserOnboarding } from "@/lib/auth/onboarding";
 import { mapUserToProfile } from "@/lib/auth/profile";
 import { sanitizeNextPath } from "@/lib/auth/redirects";
 import { createSupabaseServerAuthClient } from "@/lib/supabase/server-auth";
@@ -33,7 +34,7 @@ export async function GET(request: Request) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  let isNewUser = false;
+  let showNewUserOnboarding = false;
 
   if (user) {
     const { data: existingProfile, error: profileLookupError } = await supabase
@@ -42,10 +43,14 @@ export async function GET(request: Request) {
       .eq("id", user.id)
       .maybeSingle();
 
-    isNewUser = !profileLookupError && !existingProfile;
+    showNewUserOnboarding = shouldShowNewUserOnboarding({
+      authCreatedAt: user.created_at,
+      profileExists: Boolean(existingProfile),
+      profileLookupFailed: Boolean(profileLookupError),
+    });
 
     await supabase.from("profiles").upsert(mapUserToProfile(user));
   }
 
-  return redirectTo(request, isNewUser ? "/app/onboarding" : next);
+  return redirectTo(request, showNewUserOnboarding ? "/app/onboarding" : next);
 }

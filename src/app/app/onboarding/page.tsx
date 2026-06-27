@@ -3,6 +3,7 @@ import { ArrowRight, PlayCircle } from "lucide-react";
 
 import { PageHeader } from "@/components/PageHeader";
 import { buttonVariants } from "@/components/ui/button";
+import { OnboardingGate } from "@/app/app/onboarding/OnboardingGate";
 import {
   Card,
   CardContent,
@@ -14,6 +15,7 @@ import {
 export default function OnboardingPage() {
   return (
     <div className="space-y-6">
+      <OnboardingGate />
       <PageHeader
         title="Welcome to Introbase"
         description="Start with a quick guided demo, or jump straight into a blank import queue."
