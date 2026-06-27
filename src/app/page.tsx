@@ -175,7 +175,7 @@ export default async function Home() {
         <section className="border-y border-border/60 bg-white">
           <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
             <h2 className="text-center text-2xl font-semibold tracking-tight">
-              From chaos to a ranked reply queue
+              Turn chaos into a ranked reply queue
             </h2>
             <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
               {steps.map((step, index) => {
@@ -213,7 +213,7 @@ export default async function Home() {
             <p className="mt-4 leading-7 text-muted-foreground">
               Founders and builders miss opportunities because inbound lives
               across email, LinkedIn, Slack, Discord, texts, and DMs. Introbase
-              turns the chaos into a ranked queue of what matters — so the
+              turns the chaos into a ranked queue of what matters, so the
               investor intro never sits unread under a newsletter.
             </p>
           </div>
