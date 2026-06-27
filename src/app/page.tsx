@@ -5,6 +5,7 @@ import {
   MessageSquareReply,
   ShieldCheck,
 } from "lucide-react";
+import Link from "next/link";
 
 import { LandingActions } from "@/components/LandingActions";
 import { BrandMark } from "@/components/LogoLink";
@@ -222,10 +223,10 @@ export default async function Home() {
               <h3 className="text-sm font-semibold">Privacy-first beta</h3>
             </div>
             <p className="mt-3 text-sm leading-6 text-muted-foreground">
-              For the beta, you paste messages manually or connect read-only
-              integrations. Introbase does not store your raw pasted messages
-              server-side by default; your analysis is saved locally in your
-              browser.
+              IntroBase analyzes the messages you provide to prioritize
+              replies. Message content may be sent to OpenAI for analysis and
+              stored in your account so you can view your board. We don&apos;t
+              sell your data or use your messages for advertising.
             </p>
           </div>
         </section>
@@ -250,10 +251,18 @@ export default async function Home() {
       <footer className="border-t border-border/60 bg-white">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 py-8 sm:flex-row sm:px-6">
           <BrandMark />
-          <p className="text-sm text-muted-foreground">
-            © {new Date().getFullYear()} Introbase. Built for founders who
-            cannot afford to miss inbound.
-          </p>
+          <div className="flex flex-col items-center gap-2 text-sm text-muted-foreground sm:items-end">
+            <p>
+              © {new Date().getFullYear()} Introbase. Built for founders who
+              cannot afford to miss inbound.
+            </p>
+            <Link
+              href="/privacy"
+              className="font-medium text-foreground underline-offset-4 hover:underline"
+            >
+              Privacy Policy
+            </Link>
+          </div>
         </div>
       </footer>
     </div>

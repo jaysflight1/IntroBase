@@ -960,8 +960,10 @@ function ImportView({ demo = false }: ImportExperienceProps) {
           <div className="flex gap-3 rounded-xl border border-border/70 bg-muted/40 p-4">
             <ShieldCheck className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
             <p className="text-xs leading-5 text-muted-foreground">
-              Introbase does not store your raw pasted messages server-side by
-              default. The analyzed board is saved locally in this browser.
+              IntroBase analyzes the messages you provide to prioritize
+              replies. Message content may be sent to OpenAI for analysis and
+              stored in your account so you can view your board. We don&apos;t
+              sell your data or use your messages for advertising.
             </p>
           </div>
         </aside>
