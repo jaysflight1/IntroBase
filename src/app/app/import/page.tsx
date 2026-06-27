@@ -28,6 +28,7 @@ import { readJson, writeJson } from "@/lib/browserStorage";
 import { logEvent } from "@/lib/logEvent";
 import { makeClientId } from "@/lib/normalize";
 import { migrateAnalysisResult } from "@/lib/replyTiming";
+import { sanitizeNextPath } from "@/lib/auth/redirects";
 import { STORAGE_KEYS } from "@/lib/storageKeys";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -331,6 +332,15 @@ function ImportView({ demo = false }: ImportExperienceProps) {
   const searchParams = useSearchParams();
   const shouldLoadSample = demo || searchParams.get("sample") === "1";
   const storageKeys = useMemo(() => getImportStorageKeys(demo), [demo]);
+  const demoReturnTo = useMemo(() => {
+    if (!demo) return "";
+
+    const value = searchParams.get("returnTo");
+    if (!value) return "";
+
+    const sanitized = sanitizeNextPath(value);
+    return sanitized.startsWith("/app") ? sanitized : "";
+  }, [demo, searchParams]);
   const analyzeCalloutRef = useRef<HTMLDivElement>(null);
   const messageRefs = useRef(new Map<string, HTMLDivElement>());
   const [activeMessages, setActiveMessages] = useState<ImportMessageDraft[]>([]);
@@ -622,7 +632,11 @@ function ImportView({ demo = false }: ImportExperienceProps) {
         setActiveMessages([createDraftMessage()]);
         setPreviousMessages(analyzedDrafts);
         toast.success("Demo messages analyzed");
-        router.push("/demo/board");
+        router.push(
+          demoReturnTo
+            ? `/demo/board?returnTo=${encodeURIComponent(demoReturnTo)}`
+            : "/demo/board",
+        );
         return;
       }
 
@@ -701,7 +715,13 @@ function ImportView({ demo = false }: ImportExperienceProps) {
       setActiveMessages(finalActive);
       setPreviousMessages(nextPrevious);
       toast.success("Messages analyzed");
-      router.push(demo ? "/demo/board" : "/app/board");
+      router.push(
+        demo
+          ? demoReturnTo
+            ? `/demo/board?returnTo=${encodeURIComponent(demoReturnTo)}`
+            : "/demo/board"
+          : "/app/board",
+      );
     } catch (error) {
       toast.error(
         error instanceof Error

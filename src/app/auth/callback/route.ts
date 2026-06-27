@@ -33,9 +33,19 @@ export async function GET(request: Request) {
     data: { user },
   } = await supabase.auth.getUser();
 
+  let isNewUser = false;
+
   if (user) {
+    const { data: existingProfile, error: profileLookupError } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("id", user.id)
+      .maybeSingle();
+
+    isNewUser = !profileLookupError && !existingProfile;
+
     await supabase.from("profiles").upsert(mapUserToProfile(user));
   }
 
-  return redirectTo(request, next);
+  return redirectTo(request, isNewUser ? "/app/onboarding" : next);
 }

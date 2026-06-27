@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import type { DragEvent, KeyboardEvent } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   Archive,
   CheckCircle2,
@@ -40,6 +41,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { readJson, writeJson } from "@/lib/browserStorage";
 import { logEvent } from "@/lib/logEvent";
 import { makeClientId } from "@/lib/normalize";
+import { sanitizeNextPath } from "@/lib/auth/redirects";
 import { STORAGE_KEYS } from "@/lib/storageKeys";
 import {
   compareMessagesByDeadlineUrgency,
@@ -192,7 +194,22 @@ function filterDeletedMessages(
   );
 }
 
-export function BoardExperience({ demo = false }: BoardExperienceProps) {
+export function BoardExperience(props: BoardExperienceProps) {
+  return (
+    <Suspense
+      fallback={
+        <div className="surface-card p-8 text-sm text-muted-foreground">
+          Loading board...
+        </div>
+      }
+    >
+      <BoardView {...props} />
+    </Suspense>
+  );
+}
+
+function BoardView({ demo = false }: BoardExperienceProps) {
+  const searchParams = useSearchParams();
   const storageKeys = useMemo(() => getBoardStorageKeys(demo), [demo]);
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [selected, setSelected] = useState<AnalyzedMessage | null>(null);
@@ -206,6 +223,15 @@ export function BoardExperience({ demo = false }: BoardExperienceProps) {
   const [tutorialStep, setTutorialStep] = useState<number | null>(
     demo ? 0 : null,
   );
+  const demoReturnTo = useMemo(() => {
+    if (!demo) return "";
+
+    const value = searchParams.get("returnTo");
+    if (!value) return "";
+
+    const sanitized = sanitizeNextPath(value);
+    return sanitized.startsWith("/app") ? sanitized : "";
+  }, [demo, searchParams]);
 
   useEffect(() => {
     void Promise.resolve().then(() => {
@@ -773,6 +799,7 @@ export function BoardExperience({ demo = false }: BoardExperienceProps) {
       {showTutorial ? (
         <DemoBoardTutorial
           step={tutorialStep}
+          returnTo={demoReturnTo}
           onNext={() => setTutorialStep((current) => (current ?? 0) + 1)}
           onSkip={() => setTutorialStep(null)}
         />
@@ -1135,10 +1162,12 @@ export default function BoardPage() {
 
 function DemoBoardTutorial({
   step,
+  returnTo,
   onNext,
   onSkip,
 }: {
   step: number;
+  returnTo?: string;
   onNext: () => void;
   onSkip: () => void;
 }) {
@@ -1164,12 +1193,23 @@ function DemoBoardTutorial({
     {
       icon: CheckCircle2,
       title: "You are ready",
-      body: "That is the core loop: import messages, analyze them, and work from the board without losing important follow-ups.",
-      action: "Finish",
+      body: "That's the flow: import messages, analyze them, and instantly know exactly what to prioritize.",
+      action: returnTo ? "Next" : "Finish",
     },
+    ...(returnTo
+      ? [
+          {
+            icon: Clipboard,
+            title: "Start your workspace",
+            body: "Open your own import page. It starts empty, so you can add the messages you actually want Introbase to analyze.",
+            action: "Go to my app",
+          },
+        ]
+      : []),
   ];
   const content = tutorialContent[Math.min(step, tutorialContent.length - 1)];
   const Icon = content.icon;
+  const finalStep = step >= tutorialContent.length - 1;
 
   return (
     <div className="fixed top-4 right-4 z-50 w-[min(calc(100vw-2rem),360px)] rounded-lg border border-border/80 bg-card p-4 shadow-xl">
@@ -1181,7 +1221,8 @@ function DemoBoardTutorial({
           <div>
             <p className="text-sm font-semibold">{content.title}</p>
             <p className="text-xs text-muted-foreground">
-              Step {Math.min(step + 1, 4)} of 4
+              Step {Math.min(step + 1, tutorialContent.length)} of{" "}
+              {tutorialContent.length}
             </p>
           </div>
         </div>
@@ -1191,13 +1232,22 @@ function DemoBoardTutorial({
       </div>
       <p className="text-sm leading-6 text-muted-foreground">{content.body}</p>
       {content.action ? (
-        <Button
-          className="mt-4 w-full"
-          size="sm"
-          onClick={step >= 3 ? onSkip : onNext}
-        >
-          {content.action}
-        </Button>
+        finalStep && returnTo ? (
+          <Link
+            href={returnTo}
+            className={buttonVariants({ className: "mt-4 w-full", size: "sm" })}
+          >
+            {content.action}
+          </Link>
+        ) : (
+          <Button
+            className="mt-4 w-full"
+            size="sm"
+            onClick={finalStep ? onSkip : onNext}
+          >
+            {content.action}
+          </Button>
+        )
       ) : (
         <p className="mt-4 rounded-md bg-muted px-3 py-2 text-xs font-medium text-muted-foreground">
           {step === 1
