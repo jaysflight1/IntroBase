@@ -1343,7 +1343,10 @@ function DemoFeedbackPrompt({
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => (!nextOpen ? onDone() : null)}>
-      <DialogContent className="max-h-[min(760px,calc(100vh-2rem))] overflow-y-auto sm:max-w-5xl">
+      <DialogContent
+        className="max-h-[min(760px,calc(100vh-2rem))] overflow-y-auto sm:max-w-5xl"
+        showCloseButton={false}
+      >
         <button
           type="button"
           onClick={onDone}
