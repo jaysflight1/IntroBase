@@ -28,7 +28,7 @@ export function BrandMark({ className }: LogoLinkProps): JSX.Element {
         />
       </span>
       <span className="text-[15px] font-semibold tracking-tight text-foreground">
-        Introbase
+        IntroBase
       </span>
     </Link>
   );
