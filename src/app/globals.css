@@ -135,12 +135,7 @@
 
 @layer utilities {
   .bg-landing-shell {
-    background-color: #ffffff;
-    background-image: radial-gradient(
-      ellipse 80% 50% at 50% -20%,
-      color-mix(in oklab, var(--primary) 8%, transparent),
-      transparent 70%
-    );
+    background-color: #f8fafc;
   }
 
   .surface-card {
@@ -149,6 +144,34 @@
 
   .surface-card-muted {
     @apply rounded-xl border border-border/60 bg-muted/40 shadow-sm;
+  }
+
+  .landing-story-shell {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    background-color: #fbfaf7;
+    background-image: radial-gradient(
+        ellipse 115% 88% at 50% 50%,
+        color-mix(in oklab, #f59e0b 3%, transparent),
+        transparent 78%
+      ),
+      radial-gradient(
+        ellipse 56% 32% at 6% 28%,
+        color-mix(in oklab, #ef4444 10%, transparent),
+        transparent 74%
+      ),
+      radial-gradient(
+        ellipse 64% 36% at 94% 84%,
+        color-mix(in oklab, #3b82f6 10%, transparent),
+        transparent 76%
+      ),
+      linear-gradient(
+        180deg,
+        color-mix(in oklab, #f59e0b 3%, transparent) 0%,
+        color-mix(in oklab, #f59e0b 2%, transparent) 54%,
+        color-mix(in oklab, #3b82f6 5%, transparent) 100%
+      );
   }
 
   .landing-float {

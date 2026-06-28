@@ -1,9 +1,12 @@
 import {
   CalendarClock,
+  Clock3,
   Inbox,
+  Layers3,
   ListOrdered,
   MessageSquareReply,
-  ShieldCheck,
+  Sparkles,
+  Zap,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -85,11 +88,11 @@ const steps = [
     icon: Inbox,
     title: "Bring in your inbound",
     description:
-      "Paste emails, DMs, and Slack messages. Gmail and Slack integrations are optional.",
+      "Paste messages now, connect Slack when ready, and keep Gmail on the roadmap.",
   },
   {
     icon: ListOrdered,
-    title: "Introbase ranks every message",
+    title: "IntroBase ranks every message",
     description:
       "Each message is scored on opportunity value, urgency, relationship, and deadlines.",
   },
@@ -107,14 +110,38 @@ const steps = [
   },
 ];
 
+const signalCards = [
+  {
+    icon: Zap,
+    label: "Urgency",
+    value: "48h pilot window",
+    accent: "text-red-600",
+    bar: "bg-red-500",
+  },
+  {
+    icon: Sparkles,
+    label: "Relationship",
+    value: "Warm accelerator partner",
+    accent: "text-amber-600",
+    bar: "bg-amber-500",
+  },
+  {
+    icon: Clock3,
+    label: "Next step",
+    value: "Reply before deck review",
+    accent: "text-blue-600",
+    bar: "bg-blue-500",
+  },
+];
+
 export default async function Home() {
   const user = await getCurrentUser();
   const isSignedIn = Boolean(user);
 
   return (
-    <div className="min-h-screen bg-landing-shell text-foreground">
+    <div className="min-h-screen overflow-hidden bg-landing-shell text-foreground">
       <VisitLogger eventName="visited_landing" />
-      <header className="sticky top-0 z-40 border-b border-border/60 bg-white/80 backdrop-blur-md">
+      <header className="sticky top-0 z-40 border-b border-white/70 bg-white/80 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
           <BrandMark />
           <LandingActions compact isSignedIn={isSignedIn} />
@@ -122,6 +149,7 @@ export default async function Home() {
       </header>
 
       <main>
+        <div className="landing-story-shell">
           <section className="relative">
             <div className="mx-auto flex min-h-[calc(100svh-4rem)] max-w-6xl flex-col justify-center px-4 py-8 text-center sm:px-6 lg:py-10">
               <div className="relative z-10">
@@ -222,88 +250,117 @@ export default async function Home() {
             </div>
           </section>
 
-        <section className="border-y border-border/60 bg-white">
-          <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
-            <h2 className="text-center text-2xl font-semibold tracking-tight">
-              Turn chaos into a ranked reply queue
-            </h2>
-            <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
-              {steps.map((step, index) => {
-                const Icon = step.icon;
+          <section className="landing-scroll-reveal">
+            <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
+              <div className="mx-auto max-w-2xl text-center">
+                <p className="text-sm font-semibold text-blue-600">
+                  From noisy inbound to harmony
+                </p>
+                <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
+                  Turn chaos into a ranked reply queue
+                </h2>
+              </div>
+              <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {steps.map((step, index) => {
+                  const Icon = step.icon;
+
+                  return (
+                    <div
+                      key={step.title}
+                      className="group rounded-xl border border-border/70 bg-white/85 p-5 shadow-sm backdrop-blur transition duration-300 hover:-translate-y-1 hover:border-foreground/15 hover:shadow-lg hover:shadow-slate-900/10"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="flex size-9 items-center justify-center rounded-lg border border-blue-200 bg-blue-50 text-blue-600 ring-1 ring-blue-100 transition-colors group-hover:bg-blue-100">
+                          <Icon className="size-4.5 transition-transform group-hover:scale-110" />
+                        </span>
+                        <span className="text-xs font-medium text-muted-foreground">
+                          0{index + 1}
+                        </span>
+                      </div>
+                      <h3 className="mt-4 text-sm font-semibold">
+                        {step.title}
+                      </h3>
+                      <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                        {step.description}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
+
+          <section className="landing-scroll-reveal mx-auto grid max-w-6xl items-center gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[0.9fr_1.1fr]">
+            <div>
+              <p className="text-sm font-semibold text-red-600">
+                What IntroBase reads for
+              </p>
+              <h2 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
+                Your important messages are scattered.
+              </h2>
+              <p className="mt-4 leading-7 text-muted-foreground">
+                Founders and builders miss opportunities because inbound lives
+                across email, LinkedIn, Slack, Discord, texts, and DMs.
+                IntroBase turns the chaos into a ranked queue of what matters,
+                so the investor intro never sits unread under a newsletter.
+              </p>
+            </div>
+            <div className="grid gap-4 sm:grid-cols-3">
+              {signalCards.map((signal) => {
+                const Icon = signal.icon;
 
                 return (
                   <div
-                    key={step.title}
-                    className="rounded-xl border border-border/70 bg-card p-5"
+                    key={signal.label}
+                    className="rounded-xl border border-border/70 bg-white/85 p-5 shadow-sm backdrop-blur transition duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-slate-900/10"
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="flex size-9 items-center justify-center rounded-lg border border-border/80 bg-muted/50">
-                        <Icon className="size-4.5 text-foreground/70" />
-                      </span>
-                      <span className="text-xs font-medium text-muted-foreground">
-                        Step {index + 1}
-                      </span>
+                    <div className="flex items-center justify-between gap-3">
+                      <Icon className={cn("size-5", signal.accent)} />
+                      <span
+                        className={cn("h-1.5 w-14 rounded-full", signal.bar)}
+                      />
                     </div>
-                    <h3 className="mt-4 text-sm font-semibold">{step.title}</h3>
+                    <p className="mt-5 text-sm font-semibold">
+                      {signal.label}
+                    </p>
                     <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                      {step.description}
+                      {signal.value}
                     </p>
                   </div>
                 );
               })}
             </div>
-          </div>
-        </section>
+          </section>
 
-        <section className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-16 sm:px-6 lg:grid-cols-2">
-          <div>
-            <h2 className="text-2xl font-semibold tracking-tight">
-              Your important messages are scattered.
-            </h2>
-            <p className="mt-4 leading-7 text-muted-foreground">
-              Founders and builders miss opportunities because inbound lives
-              across email, LinkedIn, Slack, Discord, texts, and DMs. Introbase
-              turns the chaos into a ranked queue of what matters, so the
-              investor intro never sits unread under a newsletter.
-            </p>
-          </div>
-          <div className="rounded-xl border border-border/70 bg-card p-6">
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="size-4 text-emerald-600" />
-              <h3 className="text-sm font-semibold">Privacy-first beta</h3>
+          <section className="landing-scroll-reveal mx-auto max-w-6xl px-4 pb-20 sm:px-6">
+            <div className="relative overflow-hidden rounded-2xl border border-slate-900 bg-slate-950 px-6 py-14 text-center text-white shadow-xl shadow-slate-900/20 sm:px-10">
+              <div
+                aria-hidden="true"
+                className="absolute inset-x-0 top-0 h-1 bg-[linear-gradient(90deg,#ef4444,#f59e0b,#3b82f6)]"
+              />
+              <Layers3 className="mx-auto size-6 text-blue-300" />
+              <h2 className="mx-auto mt-5 max-w-2xl text-2xl font-semibold tracking-tight sm:text-3xl">
+                Stop losing opportunities in your inbox.
+              </h2>
+              <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-white/75">
+                {isSignedIn
+                  ? "Open your workspace, or try the sample inbox in under a minute."
+                  : "Sign in with Google, then try the sample inbox in under a minute."}
+              </p>
+              <div className="mt-7 flex justify-center">
+                <LandingActions inverted isSignedIn={isSignedIn} />
+              </div>
             </div>
-            <p className="mt-3 text-sm leading-6 text-muted-foreground">
-              IntroBase analyzes the messages you provide to prioritize
-              replies. Message content may be sent to OpenAI for analysis and
-              stored in your account so you can view your board. We don&apos;t
-              sell your data or use your messages for advertising.
-            </p>
-          </div>
-        </section>
-
-        <section className="mx-auto max-w-6xl px-4 pb-20 sm:px-6">
-          <div className="rounded-2xl bg-foreground px-6 py-14 text-center text-background">
-            <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-              Stop losing opportunities in your inbox.
-            </h2>
-            <p className="mx-auto mt-3 max-w-xl text-sm leading-6 opacity-80">
-              {isSignedIn
-                ? "Open your workspace, or try the sample inbox in under a minute."
-                : "Sign in with Google, then try the sample inbox in under a minute."}
-            </p>
-            <div className="mt-7 flex justify-center">
-              <LandingActions inverted isSignedIn={isSignedIn} />
-            </div>
-          </div>
-        </section>
+          </section>
+        </div>
       </main>
 
-      <footer className="border-t border-border/60 bg-white">
+      <footer className="border-t border-white/80 bg-white/80 backdrop-blur">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 py-8 sm:flex-row sm:px-6">
           <BrandMark />
           <div className="flex flex-col items-center gap-2 text-sm text-muted-foreground sm:items-end">
             <p>
-              © {new Date().getFullYear()} Introbase. Built for founders who
+              © {new Date().getFullYear()} IntroBase. Built for founders who
               cannot afford to miss inbound.
             </p>
             <Link
