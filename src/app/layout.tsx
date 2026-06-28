@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Introbase",
+  title: "IntroBase",
   description: "AI command center for your inbound messages.",
 };
 

@@ -179,10 +179,7 @@ export default async function Home() {
                         key={column.title}
                         className="group rounded-xl border border-white bg-white/75 p-2 shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-slate-900/10 focus-within:-translate-y-1 focus-within:shadow-lg"
                       >
-                        <button
-                          className="flex w-full items-center justify-between gap-3 rounded-lg px-1 pb-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                          type="button"
-                        >
+                        <div className="flex w-full items-center justify-between gap-3 rounded-lg px-1 pb-2 text-left">
                           <span>
                             <span className="text-xs font-semibold">
                               {column.title}
@@ -197,7 +194,7 @@ export default async function Home() {
                               getTimingVisual(column.timing).dot,
                             )}
                           />
-                        </button>
+                        </div>
                         <div className="h-1.5 overflow-hidden rounded-full bg-muted">
                           <div
                             className={cn(

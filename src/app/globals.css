@@ -174,14 +174,6 @@
       );
   }
 
-  .landing-float {
-    animation: landing-float 6s ease-in-out infinite;
-  }
-
-  .landing-float-delayed {
-    animation-delay: -2.5s;
-  }
-
   .landing-score-bar {
     transform-origin: left center;
     animation: landing-score-fill 900ms ease-out both;
@@ -198,25 +190,6 @@
       animation-timeline: view();
       animation-range: entry 8% cover 28%;
     }
-  }
-}
-
-@keyframes landing-drift {
-  from {
-    transform: translate3d(0, 0, 0) rotate(-12deg) scale(1);
-  }
-  to {
-    transform: translate3d(1.5rem, -0.75rem, 0) rotate(-8deg) scale(1.04);
-  }
-}
-
-@keyframes landing-float {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-0.65rem);
   }
 }
 
@@ -250,7 +223,6 @@
     transition-duration: 0.01ms !important;
   }
 
-  .landing-float,
   .landing-score-bar,
   .landing-scroll-reveal {
     animation: none !important;
