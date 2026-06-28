@@ -146,12 +146,15 @@ export default async function Home() {
                     <span className="size-2.5 rounded-full bg-blue-400" />
                   </div>
                   <div className="grid gap-3 rounded-xl bg-slate-50/80 p-3 text-left sm:grid-cols-2 lg:grid-cols-4">
-                    {previewColumns.map((column) => (
+                    {previewColumns.map((column, index) => (
                       <div
                         key={column.title}
-                        className="rounded-xl border border-white bg-white/75 p-2 shadow-sm"
+                        className="group rounded-xl border border-white bg-white/75 p-2 shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-slate-900/10 focus-within:-translate-y-1 focus-within:shadow-lg"
                       >
-                        <div className="flex w-full items-center justify-between gap-3 rounded-lg px-1 pb-2 text-left">
+                        <button
+                          className="flex w-full items-center justify-between gap-3 rounded-lg px-1 pb-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                          type="button"
+                        >
                           <span>
                             <span className="text-xs font-semibold">
                               {column.title}
@@ -162,25 +165,28 @@ export default async function Home() {
                           </span>
                           <span
                             className={cn(
-                              "size-2.5 rounded-full",
+                              "size-2.5 rounded-full transition-transform group-hover:scale-125",
                               getTimingVisual(column.timing).dot,
                             )}
                           />
-                        </div>
+                        </button>
                         <div className="h-1.5 overflow-hidden rounded-full bg-muted">
                           <div
                             className={cn(
-                              "h-full rounded-full",
+                              "h-full rounded-full landing-score-bar",
                               getTimingVisual(column.timing).bar,
                             )}
-                            style={{ width: String(column.score) + "%" }}
+                            style={{
+                              width: `${column.score}%`,
+                              animationDelay: `${index * 160}ms`,
+                            }}
                           />
                         </div>
                         {column.cards.map((card) => (
                           <div
                             key={card.sender}
                             className={cn(
-                              "mt-3 rounded-lg border border-border/70 bg-card p-3 shadow-xs",
+                              "mt-3 rounded-lg border border-border/70 bg-card p-3 shadow-xs transition duration-300 group-hover:border-foreground/15",
                               getTimingCardClass(column.timing),
                             )}
                           >
