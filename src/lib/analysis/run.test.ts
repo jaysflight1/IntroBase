@@ -4,6 +4,7 @@ import {
   ANALYSIS_MODEL,
   FALLBACK_ANALYSIS_MODEL,
   analyzeRawMessages,
+  isProductionOpenAIDisabled,
 } from "@/lib/analysis/run";
 
 const goals = {
@@ -14,6 +15,8 @@ const rawMessages = `Source: Email
 From: Maya Chen
 Message: Can you send the pilot report by Monday?`;
 const originalApiKey = process.env.OPENAI_API_KEY;
+const originalNodeEnv = process.env.NODE_ENV;
+const originalVercelEnv = process.env.VERCEL_ENV;
 
 function restoreApiKey() {
   if (originalApiKey === undefined) {
@@ -24,10 +27,44 @@ function restoreApiKey() {
   process.env.OPENAI_API_KEY = originalApiKey;
 }
 
+function restoreEnvironment() {
+  restoreApiKey();
+
+  if (originalNodeEnv === undefined) {
+    delete process.env.NODE_ENV;
+  } else {
+    process.env.NODE_ENV = originalNodeEnv;
+  }
+
+  if (originalVercelEnv === undefined) {
+    delete process.env.VERCEL_ENV;
+  } else {
+    process.env.VERCEL_ENV = originalVercelEnv;
+  }
+}
+
 describe("analyzeRawMessages diagnostics", () => {
   afterEach(() => {
-    restoreApiKey();
+    restoreEnvironment();
     vi.unstubAllGlobals();
+  });
+
+  it("disables OpenAI in production even when an API key is configured", async () => {
+    process.env.OPENAI_API_KEY = "test_key";
+    process.env.VERCEL_ENV = "production";
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await analyzeRawMessages(rawMessages, goals);
+
+    expect(isProductionOpenAIDisabled()).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(result.analysisDiagnostics).toEqual({
+      engine: "fallback",
+      model: FALLBACK_ANALYSIS_MODEL,
+      openaiAttempted: false,
+      fallbackReason: "production_openai_disabled",
+    });
   });
 
   it("reports local fallback when the API key is missing", async () => {

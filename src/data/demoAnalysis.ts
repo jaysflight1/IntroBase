@@ -356,8 +356,8 @@ export const demoAnalysis: AnalysisResult = {
   },
   messageCount: 12,
   analysisDiagnostics: {
-    engine: "openai",
+    engine: "fallback",
     model: "demo-simulation",
-    openaiAttempted: true,
+    openaiAttempted: false,
   },
 };

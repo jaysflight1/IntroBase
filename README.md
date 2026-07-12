@@ -1,6 +1,6 @@
 # IntroBase
 
-IntroBase is an AI command center for inbound messages. It helps founders and busy builders turn scattered emails, DMs, Slack messages, Discord messages, texts, and connection requests into a prioritized reply board with deadlines, suggested actions, editable suggested replies, contacts, and follow-ups.
+IntroBase is a command center for inbound messages. It helps founders and busy builders turn scattered emails, DMs, Slack messages, Discord messages, texts, and connection requests into a prioritized reply board with deadlines, suggested actions, editable suggested replies, contacts, and follow-ups.
 
 The current product supports:
 
@@ -9,7 +9,7 @@ The current product supports:
 - A guided public demo with sample messages and fake one-second-per-message analysis.
 - Slack as the available inbox integration.
 - Gmail shown as coming soon, but not available in the product UI.
-- OpenAI `gpt-4.1-mini` analysis when `OPENAI_API_KEY` is configured, with a local parser fallback.
+- Production message analysis uses the local parser by default. Local development can optionally test OpenAI `gpt-4.1-mini` when `OPENAI_API_KEY` is configured.
 
 ## Product Flow
 
@@ -24,13 +24,13 @@ The current product supports:
 ## Features
 
 - Public landing page with sample priority board, demo CTA, Google sign-in CTA, footer privacy link, and anonymous visit logging.
-- Public `/privacy` page with current product disclosures for pasted messages, account storage, OpenAI processing, Slack, future Gmail support, analytics, and deletion.
+- Public `/privacy` page with current product disclosures for pasted messages, account storage, local parser analysis, Slack, future Gmail support, analytics, and deletion.
 - Supabase Auth with Google sign-in, protected `/app` routes, profile creation, sign-out, and first-run onboarding.
 - Guided demo routes at `/demo/import` and `/demo/board` using the same example messages as the main sample inbox, but with read-only demo messages and simulated analysis.
 - Manual import at `/app/import` with one card per message, optional sender/source/notes fields, drag-to-delete import cards, previous analyzed messages, progress tracking, and local draft persistence.
-- AI-assisted analysis through OpenAI `gpt-4.1-mini` when configured.
-- Local heuristic fallback parser when OpenAI is unavailable, invalid, or not configured.
-- Analysis diagnostics that track OpenAI vs fallback usage locally.
+- Production analysis through the local heuristic parser.
+- Optional local-development OpenAI analysis through `gpt-4.1-mini` when configured, with automatic parser fallback.
+- Analysis diagnostics that track parser vs optional local OpenAI usage.
 - Analysis rate limiting at `100` analyzed batches per anonymous user per hour when Supabase is configured, with a hard-coded admin exemption in `src/lib/analysis/rateLimit.ts`.
 - Prioritized board at `/app/board` grouped by reply timing with editable cards, drag-and-drop movement, manual ordering, editable deadlines, editable suggested replies, and a delete target.
 - Collapsible board sidebar so message columns can use more horizontal space.
@@ -54,7 +54,7 @@ The current product supports:
 - Tailwind CSS 4
 - Base UI / shadcn-style components
 - Supabase Auth and Postgres
-- OpenAI Chat Completions API
+- Optional local-development OpenAI Chat Completions API path
 - Slack OAuth and Events API
 - Vercel Analytics
 - Vitest
@@ -80,7 +80,7 @@ The current product supports:
 │   ├── components/                 Shared navigation, landing, logging, and UI components
 │   ├── data/                       Sample inbox, demo analysis, and default goal options
 │   ├── lib/                        Analysis, auth, integrations, storage, security, and utility code
-│   │   ├── analysis/               OpenAI analysis path, diagnostics, rate limiting, and local fallback analyzer
+│   │   ├── analysis/               Local parser, optional local OpenAI path, diagnostics, and rate limiting
 │   │   ├── auth/                   Profile and redirect helpers
 │   │   ├── integrations/           Slack, Gmail/future support helpers, OAuth state, sync, and board helpers
 │   │   ├── security/               Token encryption helpers
@@ -113,7 +113,7 @@ The current product supports:
 
 ## API Routes
 
-- `POST /api/analyze` - validates and analyzes pasted messages, with OpenAI-first analysis and local fallback.
+- `POST /api/analyze` - validates and analyzes pasted messages, using the local parser in production and optional OpenAI only outside production.
 - `GET /api/board` - returns server-stored analyzed Slack/Gmail/future integration messages for the authenticated user.
 - `/api/contacts` - loads and saves authenticated user contacts.
 - `/api/followups` - loads and saves authenticated user follow-ups.
@@ -156,7 +156,7 @@ Supabase is used for:
 - Saved contacts and follow-ups for authenticated users.
 - Admin metrics.
 
-Manual pasted messages are sent to the server for analysis and may be sent to OpenAI. The current app also stores the analyzed board in the user's browser and may store account-backed board/contact/follow-up data so users can view their board. See `/privacy` for the user-facing privacy disclosure.
+Manual pasted messages are sent to the server for analysis by IntroBase's parser. Production does not send pasted messages to OpenAI. The current app also stores the analyzed board in the user's browser and may store account-backed board/contact/follow-up data so users can view their board. See `/privacy` for the user-facing privacy disclosure.
 
 OAuth tokens are encrypted before storage with `TOKEN_ENCRYPTION_KEY`. Row-level security policies are enabled for user-owned profile, integration, contact, and follow-up tables, and service-role grants are applied through migrations for server-side jobs.
 
@@ -185,7 +185,7 @@ SUPABASE_SERVICE_ROLE_KEY=
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
-Required for OpenAI analysis:
+Optional for local-development OpenAI analysis only:
 
 ```bash
 OPENAI_API_KEY=
@@ -217,7 +217,7 @@ GOOGLE_GMAIL_PUBSUB_TOPIC=
 GMAIL_PUBSUB_WEBHOOK_TOKEN=
 ```
 
-Implementation note: `OPENAI_API_KEY` is the active LLM provider path. `ANTHROPIC_API_KEY` may appear in older environment examples, but there is no active Anthropic runtime path in the current code.
+Implementation note: `OPENAI_API_KEY` is the only optional LLM provider path, and production disables it in code even if the variable is present. `ANTHROPIC_API_KEY` may appear in older notes, but there is no active Anthropic runtime path in the current code.
 
 ## Supabase Setup
 
@@ -244,11 +244,11 @@ https://YOUR_PRODUCTION_DOMAIN/auth/callback
 
 In Google Cloud, the OAuth client used by Supabase sign-in should also allow the Supabase Auth callback URL for your project. The app itself uses `/auth/callback` after Supabase redirects back to the site.
 
-## OpenAI Setup
+## Optional Local OpenAI Setup
 
-Set `OPENAI_API_KEY` in `.env.local` and in production. The current prompt targets `gpt-4.1-mini` through the OpenAI Chat Completions API.
+Set `OPENAI_API_KEY` in `.env.local` only if you want to test the OpenAI path during local development. Do not set it in production. The current prompt targets `gpt-4.1-mini` through the OpenAI Chat Completions API.
 
-If the key is missing, OpenAI requests fail, or the response does not validate against the expected schema, IntroBase falls back to the local parser and records diagnostics in the returned analysis and local diagnostics counters.
+In production, IntroBase skips OpenAI before any request can be made and records `production_openai_disabled` diagnostics. Outside production, if the key is missing, OpenAI requests fail, or the response does not validate against the expected schema, IntroBase falls back to the local parser and records diagnostics in the returned analysis and local diagnostics counters.
 
 ## Slack Integration
 
@@ -300,7 +300,7 @@ Some Gmail helper code, route handlers, tests, schema, and cron configuration st
 ## Privacy and Compliance Notes
 
 - The public Privacy Policy lives at `/privacy` and is linked from the homepage footer.
-- The Import page includes a short privacy notice explaining that message content may be sent to OpenAI and stored in the user's account.
+- The Import page includes a short privacy notice explaining that production uses IntroBase's parser and that account-backed data may be stored so users can view their board.
 - IntroBase does not sell user data or use message content for advertising.
 - Slack tokens are encrypted before storage.
 - The Account page includes a delete-data action for authenticated users.
@@ -324,7 +324,7 @@ The test suite uses Vitest:
 npm run test
 ```
 
-Current tests cover core non-UI logic, including schema validation, local fallback analysis, OpenAI response repair, reply timing, message parsing, follow-up status calculation, auth redirects, OAuth state signing, Slack parser/signature logic, Gmail helper logic retained for future support, integration sync jobs, token encryption, and profile mapping.
+Current tests cover core non-UI logic, including schema validation, local fallback analysis, the production OpenAI kill switch, OpenAI response repair for local development, reply timing, message parsing, follow-up status calculation, auth redirects, OAuth state signing, Slack parser/signature logic, Gmail helper logic retained for future support, integration sync jobs, token encryption, and profile mapping.
 
 For documentation-only changes, `npm run lint` is usually enough as a lightweight sanity check. For code changes touching analysis, integrations, auth, or persistence, run both:
 

@@ -961,9 +961,10 @@ function ImportView({ demo = false }: ImportExperienceProps) {
             <ShieldCheck className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
             <p className="text-xs leading-5 text-muted-foreground">
               IntroBase analyzes the messages you provide to prioritize
-              replies. Message content may be sent to OpenAI for analysis and
-              stored in your account so you can view your board. We don&apos;t
-              sell your data or use your messages for advertising.
+              replies. Production uses IntroBase&apos;s parser rather than
+              sending message content to OpenAI, and account-backed data may be
+              stored so you can view your board. We don&apos;t sell your data or
+              use your messages for advertising.
             </p>
           </div>
         </aside>

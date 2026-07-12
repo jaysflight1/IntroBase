@@ -8,6 +8,7 @@ export const emptyAnalysisStats: AnalysisDiagnosticsStats = {
   openaiRuns: 0,
   fallbackRuns: 0,
   missingApiKeyRuns: 0,
+  productionDisabledRuns: 0,
   requestFailedRuns: 0,
   invalidResponseRuns: 0,
 };
@@ -16,6 +17,9 @@ export function formatFallbackReason(
   reason: AnalysisDiagnostics["fallbackReason"],
 ) {
   if (reason === "missing_api_key") return "missing API key";
+  if (reason === "production_openai_disabled") {
+    return "OpenAI disabled in production";
+  }
   if (reason === "openai_request_failed") return "GPT request failed";
   if (reason === "invalid_openai_response") return "invalid GPT response";
   return "unknown reason";
@@ -47,6 +51,9 @@ export function recordAnalysisRun(
   next.fallbackRuns += 1;
   if (diagnostics?.fallbackReason === "missing_api_key") {
     next.missingApiKeyRuns += 1;
+  }
+  if (diagnostics?.fallbackReason === "production_openai_disabled") {
+    next.productionDisabledRuns += 1;
   }
   if (diagnostics?.fallbackReason === "openai_request_failed") {
     next.requestFailedRuns += 1;

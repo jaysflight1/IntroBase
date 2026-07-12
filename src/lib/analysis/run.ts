@@ -12,6 +12,13 @@ import type {
 export const ANALYSIS_MODEL = "gpt-4.1-mini";
 export const FALLBACK_ANALYSIS_MODEL = "local_fallback";
 
+export function isProductionOpenAIDisabled() {
+  return (
+    process.env.VERCEL_ENV === "production" ||
+    (process.env.NODE_ENV === "production" && process.env.VERCEL_ENV !== "preview")
+  );
+}
+
 const analysisResponseFormat = {
   type: "json_schema",
   json_schema: {
@@ -314,7 +321,14 @@ export async function analyzeRawMessages(
   let result: AnalysisResult | null = null;
   let diagnostics: AnalysisDiagnostics;
 
-  if (!process.env.OPENAI_API_KEY) {
+  if (isProductionOpenAIDisabled()) {
+    diagnostics = {
+      engine: "fallback",
+      model: FALLBACK_ANALYSIS_MODEL,
+      openaiAttempted: false,
+      fallbackReason: "production_openai_disabled",
+    };
+  } else if (!process.env.OPENAI_API_KEY) {
     diagnostics = {
       engine: "fallback",
       model: FALLBACK_ANALYSIS_MODEL,

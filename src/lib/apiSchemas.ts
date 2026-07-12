@@ -102,6 +102,7 @@ const analysisDiagnosticsSchema = z.object({
   fallbackReason: z
     .enum([
       "missing_api_key",
+      "production_openai_disabled",
       "openai_request_failed",
       "invalid_openai_response",
     ])

@@ -73,6 +73,7 @@ export type AnalysisEngine = "openai" | "fallback";
 
 export type AnalysisFallbackReason =
   | "missing_api_key"
+  | "production_openai_disabled"
   | "openai_request_failed"
   | "invalid_openai_response";
 
@@ -88,6 +89,7 @@ export interface AnalysisDiagnosticsStats {
   openaiRuns: number;
   fallbackRuns: number;
   missingApiKeyRuns: number;
+  productionDisabledRuns: number;
   requestFailedRuns: number;
   invalidResponseRuns: number;
   lastRunAt?: string;

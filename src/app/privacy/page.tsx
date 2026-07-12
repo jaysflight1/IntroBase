@@ -41,9 +41,9 @@ const sections = [
   {
     title: "AI processing",
     body: [
-      "IntroBase may send message content, sender/source context, and user-provided goals to OpenAI so OpenAI can return structured classifications, deadlines, suggested actions, and suggested replies.",
-      "OpenAI acts as a service provider for this processing. IntroBase does not permit OpenAI or other AI providers to use your message content for advertising. IntroBase does not use your private messages to train its own general-purpose model unless we separately ask for and receive permission.",
-      "AI output can be wrong or incomplete. You should review suggested replies and priority recommendations before relying on them.",
+      "IntroBase production analysis uses IntroBase's server-side parser to return structured classifications, deadlines, suggested actions, and suggested replies.",
+      "Production is configured not to send pasted message content to OpenAI for analysis. OpenAI may be used only in local development or testing environments when a developer explicitly configures an API key.",
+      "Automated output can be wrong or incomplete. You should review suggested replies and priority recommendations before relying on them.",
     ],
   },
   {
@@ -72,7 +72,7 @@ const sections = [
   {
     title: "How we share information",
     body: [
-      "We share information with service providers that help us operate IntroBase, such as hosting, database, authentication, analytics, AI processing, and integration providers. Current providers may include Vercel, Supabase, OpenAI, Google, Slack, and similar infrastructure vendors.",
+      "We share information with service providers that help us operate IntroBase, such as hosting, database, authentication, analytics, and integration providers. Current production providers may include Vercel, Supabase, Google, Slack, and similar infrastructure vendors.",
       "We may disclose information if required by law, legal process, or a good-faith belief that disclosure is necessary to protect rights, safety, security, users, or the service.",
       "If IntroBase is involved in a merger, acquisition, financing, reorganization, or sale of assets, information may be transferred as part of that transaction, subject to this Privacy Policy or a replacement policy disclosed to users.",
     ],
