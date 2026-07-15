@@ -16,6 +16,7 @@ import {
   Move,
   Plus,
   Send,
+  ShieldCheck,
   Trash2,
   X,
 } from "lucide-react";
@@ -858,6 +859,14 @@ function BoardView({ demo = false }: BoardExperienceProps) {
           </>
         }
       />
+
+      <div className="flex items-center gap-2 rounded-lg border border-border/70 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+        <ShieldCheck className="size-4 shrink-0" />
+        <p>
+          Analysis powered by an automatic parser. LLM-assisted analysis is
+          currently disabled.
+        </p>
+      </div>
 
       <div className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-4">
         {grouped.map((column) => {
